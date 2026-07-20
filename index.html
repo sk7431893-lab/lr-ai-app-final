@@ -18,9 +18,11 @@ body{background:#050816;color:white;margin:0;}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 .animate-float{animation:float 3s ease-in-out infinite;}
 .animate-fadeUp{animation:fadeUp 0.5s ease forwards;}
 .animate-spin{animation:spin 1s linear infinite;}
+.skeleton{background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.04) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;}
 .glass{background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);}
 .neon-border{border:1px solid rgba(34,211,238,0.3);box-shadow:0 0 20px rgba(34,211,238,0.1);}
 .input-style{background:#070b1f;border:1px solid rgba(255,255,255,0.1);color:white;outline:none;transition:all 0.3s;}
@@ -31,7 +33,7 @@ body{background:#050816;color:white;margin:0;}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useEffect,useRef}=React;
+const {useState,useEffect,useRef,useCallback}=React;
 
 const PLANS=[
   {id:"trial",name:"Free Trial",price:"Rs.0",badge:"Try Free",badgeColor:"from-slate-500 to-slate-600",
@@ -68,26 +70,53 @@ const INITIAL_USERS=[
   {id:2,email:"demo@test.com",password:"demo123",name:"Demo User",role:"user",plan:"trial",videosLeft:3,totalVideos:0},
 ];
 
-// ─── LocalStorage Helpers ───────────────────────────────────────────
-function getStorageKey(userId){return "lrai_history_"+userId;}
+// ── LocalStorage Helpers ─────────────────────────────────────────────
+function getHistoryKey(uid){return "lrai_history_"+uid;}
+function getPromptKey(uid){return "lrai_prompts_"+uid;}
 
-function loadHistory(userId){
-  try{
-    const raw=localStorage.getItem(getStorageKey(userId));
-    return raw?JSON.parse(raw):[];
-  }catch(e){return [];}
+function loadHistory(uid){
+  try{const r=localStorage.getItem(getHistoryKey(uid));return r?JSON.parse(r):[];}
+  catch(e){return [];}
 }
-
-function saveHistory(userId,items){
+function saveHistory(uid,items){
+  try{localStorage.setItem(getHistoryKey(uid),JSON.stringify(items.slice(0,50)));}
+  catch(e){}
+}
+function clearHistory(uid){
+  try{localStorage.removeItem(getHistoryKey(uid));}catch(e){}
+}
+function loadPrompts(uid){
+  try{const r=localStorage.getItem(getPromptKey(uid));return r?JSON.parse(r):[];}
+  catch(e){return [];}
+}
+function savePrompt(uid,prompt){
   try{
-    // Max 50 items store karo
-    const trimmed=items.slice(0,50);
-    localStorage.setItem(getStorageKey(userId),JSON.stringify(trimmed));
+    const prev=loadPrompts(uid).filter(function(p){return p!==prompt;});
+    localStorage.setItem(getPromptKey(uid),JSON.stringify([prompt,...prev].slice(0,10)));
   }catch(e){}
 }
+function clearPrompts(uid){
+  try{localStorage.removeItem(getPromptKey(uid));}catch(e){}
+}
+// ────────────────────────────────────────────────────────────────────
 
-function clearHistory(userId){
-  try{localStorage.removeItem(getStorageKey(userId));}catch(e){}
+// ── Real Download Helper ─────────────────────────────────────────────
+async function downloadVideo(url,filename){
+  try{
+    const res=await fetch(url,{mode:"cors"});
+    if(!res.ok)throw new Error("fetch failed");
+    const blob=await res.blob();
+    const burl=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=burl;
+    a.download=filename||"lrai-video.mp4";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){URL.revokeObjectURL(burl);document.body.removeChild(a);},2000);
+  }catch(e){
+    // fallback: open in new tab
+    window.open(url,"_blank");
+  }
 }
 // ────────────────────────────────────────────────────────────────────
 
@@ -115,6 +144,36 @@ function Watermark(){
   );
 }
 
+// ── Skeleton Cards ───────────────────────────────────────────────────
+function SkeletonCard(){
+  return(
+    <div className="rounded-2xl overflow-hidden border border-white/8 bg-black/20">
+      <div className="skeleton aspect-video w-full"/>
+      <div className="p-3 space-y-2">
+        <div className="skeleton h-3 rounded w-3/4"/>
+        <div className="flex gap-1">
+          <div className="skeleton h-2.5 rounded w-10"/>
+          <div className="skeleton h-2.5 rounded w-8"/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SkeletonPreview(){
+  return(
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6">
+      <div className="skeleton w-full h-full absolute inset-0 rounded-2xl"/>
+      <div className="relative z-10 text-center">
+        <div className="skeleton w-16 h-16 rounded-full mx-auto mb-4"/>
+        <div className="skeleton h-4 w-32 rounded mx-auto mb-2"/>
+        <div className="skeleton h-3 w-24 rounded mx-auto"/>
+      </div>
+    </div>
+  );
+}
+// ────────────────────────────────────────────────────────────────────
+
 function LandingPage({onLogin,onRegister}){
   return(
     <div className="min-h-screen" style={{background:"#050816"}}>
@@ -123,34 +182,34 @@ function LandingPage({onLogin,onRegister}){
         <div style={{position:"absolute",top:"-5%",right:"-10%",width:"45vw",height:"45vw",background:"radial-gradient(circle,rgba(168,85,247,0.1),transparent 60%)",borderRadius:"50%"}}/>
         <div className="absolute inset-0" style={{backgroundImage:"radial-gradient(rgba(34,211,238,0.025) 1px,transparent 1px)",backgroundSize:"40px 40px"}}/>
       </div>
-      <nav className="relative flex items-center justify-between px-8 py-5 border-b border-white/5">
-        <LRLogo size={36}/>
-        <div className="flex items-center gap-3">
-          <button onClick={onLogin} className="px-5 py-2.5 rounded-xl border border-white/10 text-slate-300 text-sm font-medium hover:bg-white/5 transition">Sign In</button>
-          <button onClick={onRegister} className="px-5 py-2.5 rounded-xl text-white text-sm font-semibold" style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)"}}>Get Started Free</button>
+      <nav className="relative flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 border-b border-white/5">
+        <LRLogo size={32}/>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button onClick={onLogin} className="px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl border border-white/10 text-slate-300 text-xs sm:text-sm font-medium hover:bg-white/5 transition">Sign In</button>
+          <button onClick={onRegister} className="px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-white text-xs sm:text-sm font-semibold" style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)"}}>Get Started Free</button>
         </div>
       </nav>
-      <div className="relative max-w-6xl mx-auto px-6 pt-20 pb-16 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-cyan-400/30 bg-cyan-400/5 text-cyan-300 text-xs uppercase tracking-widest mb-8">
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-12 sm:pb-16 text-center">
+        <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-cyan-400/30 bg-cyan-400/5 text-cyan-300 text-xs uppercase tracking-widest mb-6 sm:mb-8">
           <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"/>
           AI-Powered Cinematic Video Generation
         </div>
-        <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight text-white">
+        <h1 className="text-3xl sm:text-5xl md:text-7xl font-black mb-4 sm:mb-6 leading-tight text-white">
           Create Stunning<br/>
           <span style={{background:"linear-gradient(135deg,#22d3ee,#3b82f6,#a855f7,#ec4899)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
             Cinematic Videos
           </span><br/>with AI
         </h1>
-        <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-10">
+        <p className="text-slate-400 text-base sm:text-lg max-w-2xl mx-auto mb-8 sm:mb-10">
           Real AI video generation powered by <span className="text-cyan-300 font-semibold">Kling AI v1.6</span> via secure backend proxy.
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-          <button onClick={onRegister} className="px-8 py-4 rounded-2xl text-white font-bold text-base" style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)",boxShadow:"0 0 30px rgba(34,211,238,0.3)"}}>Start Creating Free</button>
-          <button onClick={onLogin} className="px-8 py-4 rounded-2xl border border-white/10 text-slate-300 font-semibold text-base hover:bg-white/5 transition">Sign In</button>
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-12 sm:mb-16">
+          <button onClick={onRegister} className="px-6 sm:px-8 py-3 sm:py-4 rounded-2xl text-white font-bold text-sm sm:text-base" style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)",boxShadow:"0 0 30px rgba(34,211,238,0.3)"}}>Start Creating Free</button>
+          <button onClick={onLogin} className="px-6 sm:px-8 py-3 sm:py-4 rounded-2xl border border-white/10 text-slate-300 font-semibold text-sm sm:text-base hover:bg-white/5 transition">Sign In</button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 text-left">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-left">
           {PLANS.map(function(plan){return(
-            <div key={plan.id} className={"glass rounded-3xl p-6 border card-hover transition-all duration-300 relative overflow-hidden "+plan.color} style={{boxShadow:plan.glow}}>
+            <div key={plan.id} className={"glass rounded-3xl p-5 sm:p-6 border card-hover transition-all duration-300 relative overflow-hidden "+plan.color} style={{boxShadow:plan.glow}}>
               {plan.highlight&&<div className="absolute top-0 inset-x-0 h-0.5" style={{background:"linear-gradient(90deg,#22d3ee,#3b82f6,#a855f7)"}}/>}
               <div className={"inline-block px-3 py-1 rounded-full text-xs font-bold text-white mb-4 bg-gradient-to-r "+plan.badgeColor}>{plan.badge}</div>
               <h3 className="text-xl font-black text-white mb-1">{plan.name}</h3>
@@ -191,7 +250,6 @@ function AuthModal({mode,onClose,onSuccess,users,setUsers}){
     setLoading(true);
     setTimeout(function(){setLoading(false);onSuccess(found);},800);
   }
-
   function handleRegStep1(){
     setError("");
     if(!name.trim()||!email.trim()||!pass.trim()){setError("All fields required.");return;}
@@ -199,7 +257,6 @@ function AuthModal({mode,onClose,onSuccess,users,setUsers}){
     if(pass.length<6){setError("Min 6 character password.");return;}
     setStep(2);
   }
-
   function handleRegStep2(){
     setError("");
     if(!card.trim()||!expiry.trim()||!cvv.trim()){setError("All payment fields required.");return;}
@@ -215,18 +272,18 @@ function AuthModal({mode,onClose,onSuccess,users,setUsers}){
 
   return(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,0.85)",backdropFilter:"blur(12px)"}}>
-      <div className="glass neon-border rounded-3xl p-8 w-full max-w-md relative animate-fadeUp" style={{background:"rgba(5,8,22,0.97)"}}>
-        <button onClick={onClose} className="absolute top-5 right-5 text-slate-400 hover:text-white text-xl font-bold">✕</button>
-        <div className="text-center mb-7">
-          <LRLogo size={40} className="justify-center mb-4"/>
+      <div className="glass neon-border rounded-3xl p-6 sm:p-8 w-full max-w-md relative animate-fadeUp" style={{background:"rgba(5,8,22,0.97)"}}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white text-xl font-bold w-8 h-8 flex items-center justify-center">✕</button>
+        <div className="text-center mb-6">
+          <LRLogo size={36} className="justify-center mb-3"/>
           {tab==="login"
-            ?<div><h2 className="text-2xl font-black text-white">Welcome Back</h2><p className="text-slate-400 text-sm mt-1">Sign in to LR AI</p></div>
+            ?<div><h2 className="text-xl sm:text-2xl font-black text-white">Welcome Back</h2><p className="text-slate-400 text-sm mt-1">Sign in to LR AI</p></div>
             :step===1
-              ?<div><h2 className="text-2xl font-black text-white">Create Account</h2><p className="text-slate-400 text-sm mt-1">3 free videos to start</p></div>
-              :<div><h2 className="text-2xl font-black text-white">Payment Details</h2><p className="text-slate-400 text-sm mt-1">No charge now</p></div>
+              ?<div><h2 className="text-xl sm:text-2xl font-black text-white">Create Account</h2><p className="text-slate-400 text-sm mt-1">3 free videos to start</p></div>
+              :<div><h2 className="text-xl sm:text-2xl font-black text-white">Payment Details</h2><p className="text-slate-400 text-sm mt-1">No charge now</p></div>
           }
         </div>
-        <div className="flex rounded-xl border border-white/10 overflow-hidden mb-6">
+        <div className="flex rounded-xl border border-white/10 overflow-hidden mb-5">
           <button onClick={function(){setTab("login");setError("");}} className={"flex-1 py-2.5 text-sm font-semibold transition "+(tab==="login"?"bg-gradient-to-r from-cyan-500/30 to-blue-500/30 text-white":"text-slate-400")}>Sign In</button>
           <button onClick={function(){setTab("register");setStep(1);setError("");}} className={"flex-1 py-2.5 text-sm font-semibold transition "+(tab==="register"?"bg-gradient-to-r from-cyan-500/30 to-blue-500/30 text-white":"text-slate-400")}>Register</button>
         </div>
@@ -295,21 +352,21 @@ function UpgradeModal({onClose,onUpgrade}){
 
   return(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,0.9)",backdropFilter:"blur(12px)"}}>
-      <div className="glass neon-border rounded-3xl p-8 w-full max-w-2xl relative animate-fadeUp" style={{background:"rgba(5,8,22,0.97)"}}>
-        <button onClick={onClose} className="absolute top-5 right-5 text-slate-400 hover:text-white text-xl font-bold">✕</button>
-        <div className="text-center mb-8">
-          <LRLogo size={36} className="justify-center mb-4"/>
-          <h2 className="text-2xl font-black text-white">Upgrade Plan</h2>
+      <div className="glass neon-border rounded-3xl p-6 sm:p-8 w-full max-w-2xl relative animate-fadeUp" style={{background:"rgba(5,8,22,0.97)"}}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white text-xl font-bold">✕</button>
+        <div className="text-center mb-6">
+          <LRLogo size={32} className="justify-center mb-3"/>
+          <h2 className="text-xl sm:text-2xl font-black text-white">Upgrade Plan</h2>
         </div>
         {step===1?(
           <div>
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
               {paidPlans.map(function(plan){return(
                 <div key={plan.id} onClick={function(){setSelected(plan.id);}}
-                  className={"rounded-2xl p-5 border cursor-pointer transition-all "+(selected===plan.id?"border-cyan-400/50 bg-cyan-400/5":"border-white/10 hover:border-white/20")}>
-                  <div className={"inline-block px-2 py-0.5 rounded-full text-xs font-bold text-white mb-3 bg-gradient-to-r "+plan.badgeColor}>{plan.badge}</div>
+                  className={"rounded-2xl p-4 border cursor-pointer transition-all "+(selected===plan.id?"border-cyan-400/50 bg-cyan-400/5":"border-white/10 hover:border-white/20")}>
+                  <div className={"inline-block px-2 py-0.5 rounded-full text-xs font-bold text-white mb-2 bg-gradient-to-r "+plan.badgeColor}>{plan.badge}</div>
                   <h3 className="text-base font-black text-white mb-1">{plan.name}</h3>
-                  <div className="text-lg font-black mb-3" style={{background:"linear-gradient(135deg,#22d3ee,#a855f7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{plan.price}</div>
+                  <div className="text-lg font-black mb-2" style={{background:"linear-gradient(135deg,#22d3ee,#a855f7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{plan.price}</div>
                   {selected===plan.id&&<div className="text-xs text-cyan-300 font-semibold">✓ Selected</div>}
                 </div>
               );})}
@@ -338,56 +395,49 @@ function UpgradeModal({onClose,onUpgrade}){
   );
 }
 
-// ─── History Modal ───────────────────────────────────────────────────
+// ── History Modal ────────────────────────────────────────────────────
 function HistoryModal({userId,onClose,onPlay}){
   const [history,setHistory]=useState([]);
   const [confirmClear,setConfirmClear]=useState(false);
+  const [downloading,setDownloading]=useState(null);
 
-  useEffect(function(){
-    setHistory(loadHistory(userId));
-  },[userId]);
+  useEffect(function(){setHistory(loadHistory(userId));},[ userId]);
 
-  function handleClear(){
-    clearHistory(userId);
-    setHistory([]);
-    setConfirmClear(false);
-  }
-
+  function handleClear(){clearHistory(userId);setHistory([]);setConfirmClear(false);}
   function handleDelete(id){
     const updated=history.filter(function(h){return h.id!==id;});
-    setHistory(updated);
-    saveHistory(userId,updated);
+    setHistory(updated);saveHistory(userId,updated);
+  }
+  async function handleDownload(item){
+    setDownloading(item.id);
+    await downloadVideo(item.video,"lrai-"+item.title.replace(/\s+/g,"-")+".mp4");
+    setDownloading(null);
   }
 
   return(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,0.9)",backdropFilter:"blur(12px)"}}>
-      <div className="glass neon-border rounded-3xl w-full max-w-3xl relative animate-fadeUp flex flex-col" style={{background:"rgba(5,8,22,0.98)",maxHeight:"85vh"}}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4" style={{background:"rgba(0,0,0,0.9)",backdropFilter:"blur(12px)"}}>
+      <div className="glass neon-border rounded-3xl w-full max-w-3xl relative animate-fadeUp flex flex-col" style={{background:"rgba(5,8,22,0.98)",maxHeight:"90vh"}}>
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/8 flex-shrink-0">
           <div>
-            <h2 className="text-xl font-black text-white">Generation History</h2>
-            <p className="text-xs text-slate-400 mt-1">{history.length} saved generations</p>
+            <h2 className="text-lg sm:text-xl font-black text-white">Generation History</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{history.length} saved generations</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {history.length>0&&(
               confirmClear?(
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-red-300">Confirm clear?</span>
-                  <button onClick={handleClear} className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-xs font-semibold">Yes</button>
-                  <button onClick={function(){setConfirmClear(false);}} className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-300 text-xs">No</button>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-red-300 hidden sm:block">Confirm?</span>
+                  <button onClick={handleClear} className="px-2.5 py-1.5 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-xs font-semibold">Yes</button>
+                  <button onClick={function(){setConfirmClear(false);}} className="px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-300 text-xs">No</button>
                 </div>
               ):(
-                <button onClick={function(){setConfirmClear(true);}} className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/20">
-                  🗑 Clear All
-                </button>
+                <button onClick={function(){setConfirmClear(true);}} className="px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">🗑 Clear</button>
               )
             )}
             <button onClick={onClose} className="text-slate-400 hover:text-white text-xl font-bold w-8 h-8 flex items-center justify-center">✕</button>
           </div>
         </div>
-
-        {/* Content */}
-        <div className="overflow-y-auto flex-1 p-6">
+        <div className="overflow-y-auto flex-1 p-4 sm:p-6">
           {history.length===0?(
             <div className="text-center py-16">
               <div className="text-5xl mb-4">🎬</div>
@@ -397,57 +447,63 @@ function HistoryModal({userId,onClose,onPlay}){
           ):(
             <div className="space-y-3">
               {history.map(function(item){return(
-                <div key={item.id} className="flex items-center gap-4 rounded-2xl border border-white/8 bg-black/20 p-4 hover:border-cyan-400/20 transition group">
-                  {/* Thumbnail */}
-                  <div className="w-20 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-white/5">
+                <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-white/8 bg-black/20 p-3 hover:border-cyan-400/20 transition">
+                  <div className="w-16 sm:w-20 h-10 sm:h-12 rounded-xl overflow-hidden flex-shrink-0 bg-white/5">
                     <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover"/>
                   </div>
-
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-semibold text-white truncate">{item.title}</p>
-                      {item.isReal&&<span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-emerald-400/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold">AI</span>}
-                      {!item.isReal&&<span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-slate-400/20 border border-slate-400/30 text-slate-300 text-xs">Demo</span>}
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <p className="text-xs sm:text-sm font-semibold text-white truncate">{item.title}</p>
+                      {item.isReal
+                        ?<span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-emerald-400/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold">AI</span>
+                        :<span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-slate-400/20 border border-slate-400/30 text-slate-300 text-xs">Demo</span>
+                      }
                     </div>
-                    <p className="text-xs text-slate-400 truncate mb-1">{item.prompt}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500 bg-white/5 px-2 py-0.5 rounded">{item.ratio}</span>
-                      <span className="text-xs text-slate-500 bg-white/5 px-2 py-0.5 rounded">{item.duration}</span>
-                      <span className="text-xs text-slate-500 bg-white/5 px-2 py-0.5 rounded">{item.category}</span>
-                      <span className="text-xs text-slate-600 ml-auto">{item.createdAt}</span>
+                    <p className="text-xs text-slate-400 truncate mb-1 hidden sm:block">{item.prompt}</p>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="text-xs text-slate-500 bg-white/5 px-1.5 py-0.5 rounded">{item.ratio}</span>
+                      <span className="text-xs text-slate-500 bg-white/5 px-1.5 py-0.5 rounded">{item.duration}</span>
+                      <span className="text-xs text-slate-600 ml-auto hidden sm:block">{item.createdAt}</span>
                     </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={function(){onPlay(item);onClose();}}
-                      className="px-3 py-2 rounded-xl bg-cyan-400/10 border border-cyan-400/20 text-cyan-300 text-xs font-semibold hover:bg-cyan-400/20"
-                    >
-                      ▶ Play
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button onClick={function(){onPlay(item);onClose();}}
+                      className="px-2.5 py-1.5 rounded-xl bg-cyan-400/10 border border-cyan-400/20 text-cyan-300 text-xs font-semibold hover:bg-cyan-400/20">▶</button>
+                    <button onClick={function(){handleDownload(item);}} disabled={downloading===item.id}
+                      className="px-2.5 py-1.5 rounded-xl bg-violet-400/10 border border-violet-400/20 text-violet-300 text-xs font-semibold hover:bg-violet-400/20 disabled:opacity-50">
+                      {downloading===item.id?"...":"⬇"}
                     </button>
-                    <a
-                      href={item.video}
-                      download
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3 py-2 rounded-xl bg-violet-400/10 border border-violet-400/20 text-violet-300 text-xs font-semibold hover:bg-violet-400/20"
-                    >
-                      ⬇
-                    </a>
-                    <button
-                      onClick={function(){handleDelete(item.id);}}
-                      className="px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs hover:bg-red-500/20"
-                    >
-                      ✕
-                    </button>
+                    <button onClick={function(){handleDelete(item.id);}}
+                      className="px-2.5 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs hover:bg-red-500/20">✕</button>
                   </div>
                 </div>
               );})}
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+// ────────────────────────────────────────────────────────────────────
+
+// ── Prompt History Dropdown ──────────────────────────────────────────
+function PromptHistoryDropdown({userId,onSelect,onClose}){
+  const prompts=loadPrompts(userId);
+  if(prompts.length===0)return null;
+  return(
+    <div className="absolute left-0 right-0 top-full mt-1 z-50 glass neon-border rounded-2xl overflow-hidden" style={{background:"rgba(5,8,22,0.98)"}}>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8">
+        <span className="text-xs text-slate-400 font-semibold">Recent Prompts</span>
+        <button onClick={function(){clearPrompts(userId);onClose();}} className="text-xs text-red-400 hover:text-red-300">Clear</button>
+      </div>
+      <div className="max-h-48 overflow-y-auto">
+        {prompts.map(function(p,i){return(
+          <button key={i} onClick={function(){onSelect(p);onClose();}}
+            className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-white/5 hover:text-white transition border-b border-white/4 last:border-0 truncate">
+            {p}
+          </button>
+        );})}
       </div>
     </div>
   );
@@ -464,21 +520,32 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
   const [uploadName,setUploadName]=useState("");
   const [progress,setProgress]=useState(0);
   const [generating,setGenerating]=useState(false);
+  const [loadingPreview,setLoadingPreview]=useState(false);
   const [videoReady,setVideoReady]=useState(false);
   const [activeVideo,setActiveVideo]=useState(null);
   const [recentVideos,setRecentVideos]=useState(DEMO_VIDEOS);
+  const [videosLoading,setVideosLoading]=useState(true);
   const [progressMsg,setProgressMsg]=useState("");
   const [showUpgrade,setShowUpgrade]=useState(false);
   const [showProfile,setShowProfile]=useState(false);
   const [showHistory,setShowHistory]=useState(false);
+  const [showPromptHistory,setShowPromptHistory]=useState(false);
+  const [downloading,setDownloading]=useState(false);
   const [apiStatus,setApiStatus]=useState("checking");
   const [genLog,setGenLog]=useState("");
   const fileInputRef=useRef(null);
   const progressRef=useRef(null);
   const pollRef=useRef(null);
+  const promptRef=useRef(null);
   const isOwner=user.role==="owner";
   const isTrial=user.plan==="trial";
   const planInfo=PLANS.find(function(p){return p.id===user.plan;})||PLANS[0];
+
+  // Simulate initial skeleton loading
+  useEffect(function(){
+    const t=setTimeout(function(){setVideosLoading(false);},1200);
+    return function(){clearTimeout(t);};
+  },[]);
 
   useEffect(function(){
     fetch("/api/status")
@@ -506,35 +573,31 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
   },[generating]);
 
   useEffect(function(){
-    return function(){
-      clearInterval(pollRef.current);
-      clearInterval(progressRef.current);
-    };
+    return function(){clearInterval(pollRef.current);clearInterval(progressRef.current);};
   },[]);
 
-  // ── History me save karo ──────────────────────────────────────────
-  function addToHistory(item){
+  // Close prompt history on outside click
+  useEffect(function(){
+    if(!showPromptHistory)return;
+    function handleClick(e){
+      if(promptRef.current&&!promptRef.current.contains(e.target))setShowPromptHistory(false);
+    }
+    document.addEventListener("mousedown",handleClick);
+    return function(){document.removeEventListener("mousedown",handleClick);};
+  },[showPromptHistory]);
+
+  function addToHistory(item,promptText){
     const entry={
-      id:item.id,
-      title:item.title,
-      prompt:prompt,
-      video:item.video,
-      thumbnail:item.thumbnail,
-      ratio:item.ratio,
-      duration:item.duration,
-      category:item.category,
-      isReal:item.isReal||false,
+      id:item.id,title:item.title,prompt:promptText,
+      video:item.video,thumbnail:item.thumbnail,
+      ratio:item.ratio,duration:item.duration,
+      category:item.category,isReal:item.isReal||false,
       watermark:item.watermark||false,
-      createdAt:new Date().toLocaleString("en-IN",{
-        day:"2-digit",month:"short",year:"numeric",
-        hour:"2-digit",minute:"2-digit"
-      }),
+      createdAt:new Date().toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}),
     };
     const prev=loadHistory(user.id);
-    const updated=[entry,...prev.slice(0,49)];
-    saveHistory(user.id,updated);
+    saveHistory(user.id,[entry,...prev.slice(0,49)]);
   }
-  // ─────────────────────────────────────────────────────────────────
 
   function handleEnhance(){
     if(!prompt.trim())return;
@@ -549,172 +612,109 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
     reader.readAsDataURL(file);
   }
 
+  async function handleDownloadCurrent(){
+    if(!activeVideo)return;
+    setDownloading(true);
+    const fname="lrai-"+activeVideo.title.replace(/\s+/g,"-")+".mp4";
+    await downloadVideo(activeVideo.video,fname);
+    setDownloading(false);
+  }
+
   function showDemoFallback(reason){
-    clearInterval(progressRef.current);
-    clearInterval(pollRef.current);
+    clearInterval(progressRef.current);clearInterval(pollRef.current);
     setGenLog("Note: "+reason+"\nShowing demo video instead.");
-    setProgress(100);
-    setProgressMsg("Showing Demo Video");
+    setProgress(100);setProgressMsg("Showing Demo Video");
     const base=DEMO_VIDEOS[Math.floor(Math.random()*DEMO_VIDEOS.length)];
     const newItem={
-      id:Date.now(),
-      title:prompt.slice(0,30),
-      category:"Demo",
-      duration:(isTrial?"5":duration)+"s",
-      ratio:aspectRatio,
-      thumbnail:base.thumbnail,
-      video:base.video,
-      gradient:"from-slate-500/30 to-gray-600/30",
-      watermark:isTrial,
-      isReal:false,
+      id:Date.now(),title:prompt.slice(0,30),category:"Demo",
+      duration:(isTrial?"5":duration)+"s",ratio:aspectRatio,
+      thumbnail:base.thumbnail,video:base.video,
+      gradient:"from-slate-500/30 to-gray-600/30",watermark:isTrial,isReal:false,
     };
-    setActiveVideo(newItem);
-    setVideoReady(true);
-    setGenerating(false);
-    setRecentVideos(function(prev){return [newItem,...prev.slice(0,5)];});
-    addToHistory(newItem);
-
+    setLoadingPreview(true);
+    setTimeout(function(){
+      setActiveVideo(newItem);setVideoReady(true);setGenerating(false);setLoadingPreview(false);
+      setRecentVideos(function(prev){return [newItem,...prev.slice(0,5)];});
+      addToHistory(newItem,prompt);
+      savePrompt(user.id,prompt);
+    },800);
     if(isTrial){
       const u2={...user,videosLeft:user.videosLeft-1,totalVideos:user.totalVideos+1};
-      setUser(u2);
-      setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
+      setUser(u2);setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
     }else{
       const u2={...user,totalVideos:user.totalVideos+1};
-      setUser(u2);
-      setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
+      setUser(u2);setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
     }
   }
 
   async function handleGenerate(){
     if(!prompt.trim()||generating)return;
     if(isTrial&&user.videosLeft<=0){setShowUpgrade(true);return;}
-
-    setGenerating(true);
-    setVideoReady(false);
-    setProgress(5);
-    setProgressMsg("Submitting to Kling AI...");
-    setGenLog("Submitting job to Fal.ai...");
-
+    setGenerating(true);setVideoReady(false);setProgress(5);
+    setProgressMsg("Submitting to Kling AI...");setGenLog("Submitting job to Fal.ai...");
     try{
-      const body={
-        prompt:prompt,
-        duration:Number(isTrial?5:duration),
-        aspect_ratio:aspectRatio,
-      };
+      const body={prompt,duration:Number(isTrial?5:duration),aspect_ratio:aspectRatio};
       if(uploadedImage)body.image_url=uploadedImage;
-
-      const submitRes=await fetch("/api/submit",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify(body),
-      });
+      const submitRes=await fetch("/api/submit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
       const submitData=await submitRes.json();
-
       if(!submitRes.ok){showDemoFallback(submitData.error||"Submit failed");return;}
-
       const requestId=submitData.request_id;
       if(!requestId){showDemoFallback("No request_id received");return;}
-
       setGenLog("Job submitted!\nRequest ID: "+requestId+"\nPolling every 5 seconds...");
       setProgress(15);
-
-      let attempts=0;
-      const maxAttempts=72;
+      let attempts=0;const maxAttempts=72;
       clearInterval(pollRef.current);
-
       pollRef.current=setInterval(async function(){
         attempts++;
         try{
-          const pollRes=await fetch("/api/poll",{
-            method:"POST",
-            headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({request_id:requestId}),
-          });
+          const pollRes=await fetch("/api/poll",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({request_id:requestId})});
           const pollData=await pollRes.json();
-
-          if(!pollRes.ok){
-            clearInterval(pollRef.current);
-            showDemoFallback(pollData.error||"Polling failed");
-            return;
-          }
-
+          if(!pollRes.ok){clearInterval(pollRef.current);showDemoFallback(pollData.error||"Polling failed");return;}
           setGenLog("Status: "+(pollData.status||"UNKNOWN")+" (attempt "+attempts+"/"+maxAttempts+")");
-
           if(pollData.status==="COMPLETED"&&pollData.videoUrl){
-            clearInterval(pollRef.current);
-            clearInterval(progressRef.current);
-            setProgress(100);
-            setProgressMsg("Video Generated!");
-            setGenLog("Real AI Video Ready!");
-
+            clearInterval(pollRef.current);clearInterval(progressRef.current);
+            setProgress(100);setProgressMsg("Video Generated!");setGenLog("Real AI Video Ready!");
             const newItem={
-              id:Date.now(),
-              title:prompt.slice(0,30),
+              id:Date.now(),title:prompt.slice(0,30),
               category:uploadedImage?"Image-to-Video":"Text-to-Video",
-              duration:(isTrial?"5":duration)+"s",
-              ratio:aspectRatio,
+              duration:(isTrial?"5":duration)+"s",ratio:aspectRatio,
               thumbnail:"https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=800&q=80",
-              video:pollData.videoUrl,
-              gradient:"from-emerald-500/30 to-cyan-600/30",
-              watermark:isTrial,
-              isReal:true,
+              video:pollData.videoUrl,gradient:"from-emerald-500/30 to-cyan-600/30",
+              watermark:isTrial,isReal:true,
             };
-
-            setActiveVideo(newItem);
-            setVideoReady(true);
-            setGenerating(false);
-            setRecentVideos(function(prev){return [newItem,...prev.slice(0,5)];});
-            addToHistory(newItem);
-
+            setLoadingPreview(true);
+            setTimeout(function(){
+              setActiveVideo(newItem);setVideoReady(true);setGenerating(false);setLoadingPreview(false);
+              setRecentVideos(function(prev){return [newItem,...prev.slice(0,5)];});
+              addToHistory(newItem,prompt);savePrompt(user.id,prompt);
+            },600);
             if(isTrial){
               const u2={...user,videosLeft:user.videosLeft-1,totalVideos:user.totalVideos+1};
-              setUser(u2);
-              setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
+              setUser(u2);setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
             }else{
               const u2={...user,totalVideos:user.totalVideos+1};
-              setUser(u2);
-              setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
+              setUser(u2);setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
             }
             return;
           }
-
-          if(pollData.status==="FAILED"){
-            clearInterval(pollRef.current);
-            showDemoFallback(pollData.error||"Generation failed on Fal.ai");
-            return;
-          }
-
-          if(attempts>=maxAttempts){
-            clearInterval(pollRef.current);
-            showDemoFallback("Timeout after 6 minutes");
-            return;
-          }
-        }catch(pollErr){
-          clearInterval(pollRef.current);
-          showDemoFallback(pollErr.message);
-        }
+          if(pollData.status==="FAILED"){clearInterval(pollRef.current);showDemoFallback(pollData.error||"Generation failed");return;}
+          if(attempts>=maxAttempts){clearInterval(pollRef.current);showDemoFallback("Timeout after 6 minutes");return;}
+        }catch(pollErr){clearInterval(pollRef.current);showDemoFallback(pollErr.message);}
       },5000);
-
-    }catch(err){
-      showDemoFallback(err.message);
-    }
+    }catch(err){showDemoFallback(err.message);}
   }
 
   function handleUpgrade(planId){
     const u2={...user,plan:planId,videosLeft:planId==="normal"?30:planId==="standard"?100:Infinity};
-    setUser(u2);
-    setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
-    setShowUpgrade(false);
+    setUser(u2);setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});setShowUpgrade(false);
   }
 
-  const aspectClass=aspectRatio==="9:16"?"aspect-[9/16] max-w-[260px] mx-auto":aspectRatio==="1:1"?"aspect-square":"aspect-video";
+  const aspectClass=aspectRatio==="9:16"?"aspect-[9/16] max-w-[220px] sm:max-w-[260px] mx-auto":aspectRatio==="1:1"?"aspect-square":"aspect-video";
   const statusInfo={
     checking:{c:"text-slate-400",l:"Checking..."},
     connected:{c:"text-emerald-300",l:"Connected"},
     error:{c:"text-red-300",l:"Error"},
   }[apiStatus];
-
-  // History count for badge
   const historyCount=loadHistory(user.id).length;
 
   return(
@@ -728,50 +728,35 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
       {showUpgrade&&<UpgradeModal onClose={function(){setShowUpgrade(false);}} onUpgrade={handleUpgrade}/>}
       {showHistory&&<HistoryModal userId={user.id} onClose={function(){setShowHistory(false);}} onPlay={function(item){setActiveVideo(item);setVideoReady(true);}}/>}
 
-      <nav className="relative border-b border-white/5 px-6 py-4 flex items-center justify-between" style={{background:"rgba(5,8,22,0.85)",backdropFilter:"blur(20px)"}}>
-        <LRLogo size={32}/>
-        <div className="flex items-center gap-3">
+      {/* Navbar */}
+      <nav className="relative border-b border-white/5 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between" style={{background:"rgba(5,8,22,0.85)",backdropFilter:"blur(20px)"}}>
+        <LRLogo size={28}/>
+        <div className="flex items-center gap-1.5 sm:gap-3">
           {isOwner
-            ?<div className="px-3 py-1.5 rounded-full border border-violet-400/30 bg-violet-400/10 text-violet-300 text-xs font-bold">Owner</div>
-            :<div className={"px-3 py-1.5 rounded-full text-xs font-bold border "+(isTrial?"border-amber-400/30 bg-amber-400/10 text-amber-300":"border-cyan-400/30 bg-cyan-400/10 text-cyan-300")}>
-              {isTrial?"Trial: "+user.videosLeft+" left":planInfo.name}
+            ?<div className="px-2.5 py-1 rounded-full border border-violet-400/30 bg-violet-400/10 text-violet-300 text-xs font-bold">Owner</div>
+            :<div className={"px-2.5 py-1 rounded-full text-xs font-bold border "+(isTrial?"border-amber-400/30 bg-amber-400/10 text-amber-300":"border-cyan-400/30 bg-cyan-400/10 text-cyan-300")}>
+              {isTrial?"Trial: "+user.videosLeft:planInfo.name}
             </div>
           }
-
-          {/* History Button */}
-          <button
-            onClick={function(){setShowHistory(true);}}
-            className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 hover:bg-white/5 text-slate-300 text-xs font-semibold transition"
-          >
-            🕐 History
-            {historyCount>0&&(
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-cyan-400 text-black text-xs font-black flex items-center justify-center" style={{fontSize:9}}>
-                {historyCount>99?"99+":historyCount}
-              </span>
-            )}
+          <button onClick={function(){setShowHistory(true);}} className="relative flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-white/10 hover:bg-white/5 text-slate-300 text-xs font-semibold transition">
+            🕐 <span className="hidden sm:inline">History</span>
+            {historyCount>0&&<span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-cyan-400 text-black text-xs font-black flex items-center justify-center" style={{fontSize:9}}>{historyCount>99?"99+":historyCount}</span>}
           </button>
-
-          {isTrial&&<button onClick={function(){setShowUpgrade(true);}} className="px-4 py-2 rounded-xl text-white text-xs font-bold" style={{background:"linear-gradient(135deg,#f59e0b,#ef4444)"}}>Upgrade</button>}
-
+          {isTrial&&<button onClick={function(){setShowUpgrade(true);}} className="px-3 py-1.5 rounded-xl text-white text-xs font-bold" style={{background:"linear-gradient(135deg,#f59e0b,#ef4444)"}}>Upgrade</button>}
           <div className="relative">
-            <button onClick={function(){setShowProfile(!showProfile);}} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 hover:bg-white/5">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{background:"linear-gradient(135deg,#22d3ee,#a855f7)"}}>{user.name[0].toUpperCase()}</div>
-              <span className="text-sm text-slate-300 hidden md:block">{user.name}</span>
+            <button onClick={function(){setShowProfile(!showProfile);}} className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl border border-white/10 hover:bg-white/5">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{background:"linear-gradient(135deg,#22d3ee,#a855f7)"}}>{user.name[0].toUpperCase()}</div>
+              <span className="text-xs sm:text-sm text-slate-300 hidden md:block">{user.name}</span>
             </button>
             {showProfile&&(
-              <div className="absolute right-0 top-full mt-2 w-56 glass neon-border rounded-2xl p-4 z-50" style={{background:"rgba(5,8,22,0.98)"}}>
+              <div className="absolute right-0 top-full mt-2 w-52 glass neon-border rounded-2xl p-4 z-50" style={{background:"rgba(5,8,22,0.98)"}}>
                 <div className="text-sm font-semibold text-white mb-1">{user.name}</div>
                 <div className="text-xs text-slate-400 mb-2">{user.email}</div>
                 <div className="text-xs mb-1">Plan: <span className="text-cyan-300">{planInfo.name}</span></div>
                 <div className="text-xs mb-1">Videos: <span className="text-white font-semibold">{user.totalVideos}</span></div>
                 <div className="text-xs mb-2">Saved: <span className="text-cyan-300 font-semibold">{historyCount}</span></div>
                 <div className="text-xs mb-4">API: <span className={statusInfo.c}>{statusInfo.l}</span></div>
-                <button
-                  onClick={function(){setShowHistory(true);setShowProfile(false);}}
-                  className="w-full py-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 text-cyan-300 text-xs font-semibold mb-2"
-                >
-                  🕐 View History
-                </button>
+                <button onClick={function(){setShowHistory(true);setShowProfile(false);}} className="w-full py-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 text-cyan-300 text-xs font-semibold mb-2">🕐 View History</button>
                 <button onClick={onLogout} className="w-full py-2 rounded-xl border border-red-500/20 bg-red-500/10 text-red-300 text-xs font-semibold">Sign Out</button>
               </div>
             )}
@@ -779,52 +764,68 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
         </div>
       </nav>
 
-      <div className="relative max-w-7xl mx-auto px-4 py-8">
+      <div className="relative max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {isOwner&&(
-          <div className="mb-6 rounded-2xl border border-violet-400/25 bg-violet-400/5 px-6 py-4 flex items-center gap-4">
-            <span className="text-2xl">👑</span>
-            <div>
-              <div className="text-violet-300 font-semibold text-sm">Owner Account - Full Access</div>
-              <div className="text-slate-400 text-xs mt-1">Unlimited videos - All durations - No watermark</div>
+          <div className="mb-4 sm:mb-6 rounded-2xl border border-violet-400/25 bg-violet-400/5 px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 sm:gap-4">
+            <span className="text-xl sm:text-2xl">👑</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-violet-300 font-semibold text-xs sm:text-sm">Owner Account - Full Access</div>
+              <div className="text-slate-400 text-xs mt-0.5 hidden sm:block">Unlimited videos - All durations - No watermark</div>
             </div>
-            <div className={"ml-auto text-xs font-semibold px-3 py-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 "+statusInfo.c}>API: {statusInfo.l}</div>
+            <div className={"text-xs font-semibold px-3 py-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 flex-shrink-0 "+statusInfo.c}>API: {statusInfo.l}</div>
           </div>
         )}
         {isTrial&&(
-          <div className="mb-6 rounded-2xl border border-amber-400/25 bg-amber-400/5 px-6 py-4 flex flex-col md:flex-row md:items-center gap-4">
+          <div className="mb-4 sm:mb-6 rounded-2xl border border-amber-400/25 bg-amber-400/5 px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-1">
-              <div className="text-amber-300 font-semibold text-sm">Free Trial - {user.videosLeft} videos left</div>
-              <div className="text-slate-400 text-xs mt-1">5s / 720p / Watermark. Upgrade for full access.</div>
+              <div className="text-amber-300 font-semibold text-xs sm:text-sm">Free Trial — {user.videosLeft} videos left</div>
+              <div className="text-slate-400 text-xs mt-0.5">5s / 720p / Watermark. Upgrade for full access.</div>
             </div>
-            <button onClick={function(){setShowUpgrade(true);}} className="px-5 py-2.5 rounded-xl text-white text-sm font-bold" style={{background:"linear-gradient(135deg,#f59e0b,#ef4444)"}}>Remove Limits</button>
+            <button onClick={function(){setShowUpgrade(true);}} className="px-4 py-2 rounded-xl text-white text-xs sm:text-sm font-bold flex-shrink-0" style={{background:"linear-gradient(135deg,#f59e0b,#ef4444)"}}>Remove Limits</button>
           </div>
         )}
 
-        <div className="grid xl:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
           {/* Left Panel */}
-          <div className="glass rounded-3xl p-6 neon-border">
-            <div className="flex items-center justify-between mb-6">
+          <div className="glass rounded-3xl p-4 sm:p-6 neon-border">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
               <div>
-                <h2 className="text-xl font-bold text-white">Creative Console</h2>
-                <p className="text-xs text-slate-400 mt-1">Powered by Kling AI v1.6</p>
+                <h2 className="text-lg sm:text-xl font-bold text-white">Creative Console</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Powered by Kling AI v1.6</p>
               </div>
-              <div className={"px-3 py-1 rounded-full text-xs border "+(apiStatus==="connected"?"bg-emerald-400/10 border-emerald-400/30 text-emerald-300":"bg-amber-400/10 border-amber-400/30 text-amber-300")}>
+              <div className={"px-2.5 py-1 rounded-full text-xs border "+(apiStatus==="connected"?"bg-emerald-400/10 border-emerald-400/30 text-emerald-300":"bg-amber-400/10 border-amber-400/30 text-amber-300")}>
                 {statusInfo.l}
               </div>
             </div>
-            <div className="mb-4">
-              <label className="text-xs font-medium text-slate-300 mb-2 block">Your Prompt</label>
-              <textarea value={prompt} onChange={function(e){setPrompt(e.target.value);setEnhanced(false);}} placeholder="Describe your cinematic scene..."
-                className="input-style w-full min-h-[140px] px-4 py-4 rounded-2xl text-sm resize-none"/>
-              <div className="flex items-center justify-between mt-3">
+
+            {/* Prompt with history */}
+            <div className="mb-4" ref={promptRef}>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium text-slate-300">Your Prompt</label>
+                <button onClick={function(){setShowPromptHistory(!showPromptHistory);}}
+                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-cyan-300 transition px-2 py-1 rounded-lg hover:bg-white/5">
+                  🕐 Recent
+                </button>
+              </div>
+              <div className="relative">
+                <textarea value={prompt} onChange={function(e){setPrompt(e.target.value);setEnhanced(false);}}
+                  onFocus={function(){if(loadPrompts(user.id).length>0)setShowPromptHistory(true);}}
+                  placeholder="Describe your cinematic scene..."
+                  className="input-style w-full min-h-[120px] sm:min-h-[140px] px-4 py-4 rounded-2xl text-sm resize-none"/>
+                {showPromptHistory&&(
+                  <PromptHistoryDropdown userId={user.id} onSelect={function(p){setPrompt(p);setEnhanced(false);}} onClose={function(){setShowPromptHistory(false);}}/>
+                )}
+              </div>
+              <div className="flex items-center justify-between mt-2">
                 <p className="text-xs text-slate-500">{enhanced?"✨ Enhanced":"Add mood, lighting, camera"}</p>
-                <button onClick={handleEnhance} className="px-4 py-2 rounded-xl bg-cyan-400/10 border border-cyan-400/30 text-cyan-300 text-xs hover:bg-cyan-400/20">✨ Enhance</button>
+                <button onClick={handleEnhance} className="px-3 py-1.5 rounded-xl bg-cyan-400/10 border border-cyan-400/30 text-cyan-300 text-xs hover:bg-cyan-400/20">✨ Enhance</button>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <p className="text-xs text-slate-400 mb-3">Aspect Ratio</p>
-                <div className="flex gap-2">
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-3 sm:p-4">
+                <p className="text-xs text-slate-400 mb-2 sm:mb-3">Aspect Ratio</p>
+                <div className="flex gap-1.5">
                   {["16:9","9:16","1:1"].map(function(r){return(
                     <button key={r} onClick={function(){setAspectRatio(r);}}
                       className={"flex-1 py-2 rounded-xl text-xs font-semibold "+(aspectRatio===r?"text-white":"bg-white/5 border border-white/10 text-slate-400")}
@@ -832,9 +833,9 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
                   );})}
                 </div>
               </div>
-              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <p className="text-xs text-slate-400 mb-3">Duration</p>
-                <div className="flex gap-2">
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-3 sm:p-4">
+                <p className="text-xs text-slate-400 mb-2 sm:mb-3">Duration</p>
+                <div className="flex gap-1.5">
                   {["5","10"].map(function(d){return(
                     <button key={d} onClick={function(){if(isTrial&&d==="10"){setShowUpgrade(true);return;}setDuration(d);}}
                       className={"flex-1 py-2 rounded-xl text-xs font-semibold "+(duration===d&&!(isTrial&&d==="10")?"text-white":"bg-white/5 border border-white/10 text-slate-400")+" "+(isTrial&&d==="10"?"opacity-40 cursor-not-allowed":"")}
@@ -845,42 +846,45 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
                 </div>
               </div>
             </div>
-            <div className="mb-5">
+
+            <div className="mb-4">
               <p className="text-xs text-slate-400 mb-2">Image-to-Video (Optional)</p>
               <div onDragOver={function(e){e.preventDefault();setIsDragging(true);}} onDragLeave={function(){setIsDragging(false);}}
                 onDrop={function(e){e.preventDefault();setIsDragging(false);handleFile(e.dataTransfer.files&&e.dataTransfer.files[0]);}}
                 onClick={function(){fileInputRef.current&&fileInputRef.current.click();}}
-                className={"rounded-2xl border-2 border-dashed p-4 cursor-pointer "+(isDragging?"border-cyan-400 bg-cyan-400/10":"border-white/10 bg-black/20 hover:border-cyan-400/40")}>
+                className={"rounded-2xl border-2 border-dashed p-3 sm:p-4 cursor-pointer "+(isDragging?"border-cyan-400 bg-cyan-400/10":"border-white/10 bg-black/20 hover:border-cyan-400/40")}>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={function(e){handleFile(e.target.files&&e.target.files[0]);}}/>
                 {uploadedImage?(
-                  <div className="flex items-center gap-4">
-                    <img src={uploadedImage} className="w-14 h-14 rounded-xl object-cover" alt="uploaded"/>
-                    <div>
+                  <div className="flex items-center gap-3">
+                    <img src={uploadedImage} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" alt="uploaded"/>
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white">Image Ready</p>
-                      <p className="text-xs text-slate-400">{uploadName}</p>
+                      <p className="text-xs text-slate-400 truncate">{uploadName}</p>
                       <button onClick={function(e){e.stopPropagation();setUploadedImage(null);}} className="text-xs text-red-400 mt-1">Remove</button>
                     </div>
                   </div>
                 ):(
-                  <div className="text-center py-3">
+                  <div className="text-center py-2">
                     <p className="text-sm text-slate-300">Drop image or click to browse</p>
                     <p className="text-xs text-slate-500 mt-1">JPG, PNG, WEBP</p>
                   </div>
                 )}
               </div>
             </div>
+
             <button onClick={handleGenerate} disabled={generating||!prompt.trim()||(isTrial&&user.videosLeft<=0)}
-              className="w-full py-4 rounded-2xl text-base font-black text-white transition hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed mb-4"
+              className="w-full py-3.5 sm:py-4 rounded-2xl text-sm sm:text-base font-black text-white transition hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed mb-4"
               style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)",boxShadow:"0 0 40px rgba(34,211,238,0.3)"}}>
               {generating?"⏳ Generating... (2-4 min)":isTrial&&user.videosLeft<=0?"Trial Exhausted":"🎬 Generate Video"}
             </button>
+
             {(generating||progress>0)&&(
               <div className="rounded-2xl border border-cyan-400/20 bg-black/30 p-4">
-                <div className="flex justify-between text-sm mb-3">
-                  <span className="text-slate-300">Progress</span>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-slate-300 text-xs sm:text-sm">Progress</span>
                   <span className="text-cyan-300 font-black">{progress}%</span>
                 </div>
-                <div className="h-3 rounded-full bg-white/10 overflow-hidden mb-3">
+                <div className="h-2.5 sm:h-3 rounded-full bg-white/10 overflow-hidden mb-2">
                   <div className="h-full rounded-full transition-all duration-1000" style={{width:progress+"%",background:"linear-gradient(90deg,#22d3ee,#3b82f6,#a855f7)"}}/>
                 </div>
                 <p className="text-xs text-slate-400">{progressMsg}</p>
@@ -891,40 +895,50 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
           </div>
 
           {/* Right Panel */}
-          <div className="glass rounded-3xl p-6" style={{border:"1px solid rgba(168,85,247,0.15)"}}>
-            <div className="flex items-center justify-between mb-6">
+          <div className="glass rounded-3xl p-4 sm:p-6" style={{border:"1px solid rgba(168,85,247,0.15)"}}>
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
               <div>
-                <h2 className="text-xl font-bold text-white">Preview Output</h2>
-                <p className="text-xs text-slate-400 mt-1">Your generated video</p>
+                <h2 className="text-lg sm:text-xl font-bold text-white">Preview Output</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Your generated video</p>
               </div>
-              <div className={"px-3 py-1 rounded-full text-xs border "+(videoReady?(activeVideo&&activeVideo.isReal?"bg-emerald-400/10 border-emerald-400/30 text-emerald-300":"bg-white/5 border-white/10 text-slate-400"):"bg-white/5 border-white/10 text-slate-400")}>
+              <div className={"px-2.5 py-1 rounded-full text-xs border "+(videoReady?(activeVideo&&activeVideo.isReal?"bg-emerald-400/10 border-emerald-400/30 text-emerald-300":"bg-white/5 border-white/10 text-slate-400"):"bg-white/5 border-white/10 text-slate-400")}>
                 {videoReady?(activeVideo&&activeVideo.isReal?"✅ AI Generated":"Demo"):"Standby"}
               </div>
             </div>
-            <div className={"relative rounded-2xl overflow-hidden bg-black border border-white/10 mb-5 "+aspectClass}>
-              {!videoReady?(
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
-                  <div className="rounded-full border border-cyan-400/20 bg-cyan-400/5 flex items-center justify-center mb-5 animate-float" style={{width:72,height:72}}>
+
+            <div className={"relative rounded-2xl overflow-hidden bg-black border border-white/10 mb-4 "+aspectClass}>
+              {loadingPreview?(
+                <SkeletonPreview/>
+              ):!videoReady?(
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
+                  <div className="rounded-full border border-cyan-400/20 bg-cyan-400/5 flex items-center justify-center mb-4 animate-float" style={{width:64,height:64}}>
                     <span className="text-cyan-300 text-3xl">▶</span>
                   </div>
-                  <h3 className="text-base font-bold text-white mb-2">Ready to Generate</h3>
+                  <h3 className="text-sm sm:text-base font-bold text-white mb-1">Ready to Generate</h3>
                   <p className="text-xs text-slate-400">Write a prompt and click Generate</p>
                 </div>
               ):(
                 <div className="absolute inset-0">
-                  <video key={activeVideo&&activeVideo.video} autoPlay loop controls className="w-full h-full object-cover"
-                    poster={activeVideo&&activeVideo.thumbnail} src={activeVideo&&activeVideo.video}/>
-                  {activeVideo&&activeVideo.isReal&&<div className="absolute top-3 left-3 px-2 py-1 rounded-full bg-emerald-400/20 border border-emerald-400/30 text-emerald-200 text-xs font-bold">✅ REAL AI</div>}
+                  <video key={activeVideo&&activeVideo.video} autoPlay loop controls playsInline
+                    className="w-full h-full object-cover"
+                    poster={activeVideo&&activeVideo.thumbnail}
+                    src={activeVideo&&activeVideo.video}/>
+                  {activeVideo&&activeVideo.isReal&&<div className="absolute top-2 sm:top-3 left-2 sm:left-3 px-2 py-1 rounded-full bg-emerald-400/20 border border-emerald-400/30 text-emerald-200 text-xs font-bold">✅ REAL AI</div>}
                   {(isTrial||(activeVideo&&activeVideo.watermark))&&<Watermark/>}
-                  <a href={activeVideo&&activeVideo.video} download target="_blank" rel="noreferrer" className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-cyan-400/20 border border-cyan-400/30 text-cyan-200 text-xs font-semibold">⬇ Download</a>
+                  {/* Real Download Button */}
+                  <button onClick={handleDownloadCurrent} disabled={downloading}
+                    className="absolute top-2 sm:top-3 right-2 sm:right-3 px-2.5 sm:px-3 py-1.5 rounded-full bg-cyan-400/20 border border-cyan-400/30 text-cyan-200 text-xs font-semibold hover:bg-cyan-400/30 disabled:opacity-50 transition">
+                    {downloading?"⏳":"⬇ Download"}
+                  </button>
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              {[{l:"Engine",v:"Kling v1.6"},{l:"Backend",v:"Vercel Proxy"},{l:"Quality",v:planInfo.quality}].map(function(i){return(
-                <div key={i.l} className="rounded-xl border border-white/8 bg-black/20 p-3">
+
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              {[{l:"Engine",v:"Kling v1.6"},{l:"Backend",v:"Vercel"},{l:"Quality",v:planInfo.quality}].map(function(i){return(
+                <div key={i.l} className="rounded-xl border border-white/8 bg-black/20 p-2.5 sm:p-3">
                   <div className="text-xs text-slate-500">{i.l}</div>
-                  <div className="text-sm font-semibold text-white mt-1">{i.v}</div>
+                  <div className="text-xs sm:text-sm font-semibold text-white mt-1">{i.v}</div>
                 </div>
               );})}
             </div>
@@ -932,44 +946,44 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
         </div>
 
         {/* Recent Generations */}
-        <div className="glass rounded-3xl p-6" style={{border:"1px solid rgba(59,130,246,0.12)"}}>
-          <div className="flex items-center justify-between mb-5">
+        <div className="glass rounded-3xl p-4 sm:p-6" style={{border:"1px solid rgba(59,130,246,0.12)"}}>
+          <div className="flex items-center justify-between mb-4 sm:mb-5">
             <div>
-              <h2 className="text-xl font-bold text-white">Recent Generations</h2>
-              <p className="text-xs text-slate-400 mt-1">Click to preview</p>
+              <h2 className="text-lg sm:text-xl font-bold text-white">Recent Generations</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Click to preview</p>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={function(){setShowHistory(true);}}
-                className="px-3 py-1.5 rounded-xl bg-cyan-400/10 border border-cyan-400/20 text-cyan-300 text-xs font-semibold hover:bg-cyan-400/20"
-              >
-                🕐 Full History ({historyCount})
+            <div className="flex items-center gap-2">
+              <button onClick={function(){setShowHistory(true);}} className="px-2.5 py-1.5 rounded-xl bg-cyan-400/10 border border-cyan-400/20 text-cyan-300 text-xs font-semibold hover:bg-cyan-400/20">
+                🕐 All ({historyCount})
               </button>
-              <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 text-xs">{recentVideos.length} videos</div>
+              <div className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 text-xs">{recentVideos.length}</div>
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {recentVideos.map(function(item){return(
-              <button key={item.id} onClick={function(){setActiveVideo(item);setVideoReady(true);}}
-                className="group rounded-2xl overflow-hidden border border-white/10 bg-black/20 text-left transition-all hover:-translate-y-1 hover:border-cyan-400/30">
-                <div className="relative aspect-video overflow-hidden">
-                  <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-500"/>
-                  <div className={"absolute inset-0 bg-gradient-to-tr "+item.gradient+" mix-blend-screen"}/>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"/>
-                  {item.isReal&&<div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-emerald-400/30 text-xs text-emerald-200 font-bold">AI</div>}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white text-lg">▶</div>
-                  </div>
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <p className="text-xs font-semibold text-white truncate">{item.title}</p>
-                    <div className="flex gap-1 mt-1">
-                      <span className="text-xs text-slate-300 bg-white/10 px-1.5 py-0.5 rounded">{item.ratio}</span>
-                      <span className="text-xs text-slate-300 bg-white/10 px-1.5 py-0.5 rounded">{item.duration}</span>
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+            {videosLoading
+              ?[1,2,3,4].map(function(i){return <SkeletonCard key={i}/>;})
+              :recentVideos.map(function(item){return(
+                <button key={item.id} onClick={function(){setLoadingPreview(true);setTimeout(function(){setActiveVideo(item);setVideoReady(true);setLoadingPreview(false);},500);}}
+                  className="group rounded-2xl overflow-hidden border border-white/10 bg-black/20 text-left transition-all hover:-translate-y-1 hover:border-cyan-400/30">
+                  <div className="relative aspect-video overflow-hidden">
+                    <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-500"/>
+                    <div className={"absolute inset-0 bg-gradient-to-tr "+item.gradient+" mix-blend-screen"}/>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"/>
+                    {item.isReal&&<div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-emerald-400/30 text-xs text-emerald-200 font-bold">AI</div>}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                      <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white">▶</div>
+                    </div>
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <p className="text-xs font-semibold text-white truncate">{item.title}</p>
+                      <div className="flex gap-1 mt-1">
+                        <span className="text-xs text-slate-300 bg-white/10 px-1.5 py-0.5 rounded">{item.ratio}</span>
+                        <span className="text-xs text-slate-300 bg-white/10 px-1.5 py-0.5 rounded">{item.duration}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </button>
-            );})}
+                </button>
+              );}
+            }
           </div>
         </div>
       </div>
