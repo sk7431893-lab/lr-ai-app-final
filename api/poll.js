@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -10,6 +9,7 @@ export default async function handler(req, res) {
   }
 
   const { request_id } = req.body;
+
   if (!request_id) {
     return res.status(400).json({ error: "request_id required" });
   }
@@ -20,58 +20,68 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Fal.ai se status laa rahe hain
-    const resultRes = await fetch(
-      `https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video/requests/${request_id}`,
+    const statusRes = await fetch(
+      `https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video/requests/${request_id}/status`,
       {
-        headers: { Authorization: `Key ${FAL_KEY}` },
+        headers: {
+          Authorization: `Key ${FAL_KEY}`,
+        },
       }
     );
 
-    const data = await resultRes.json();
-    console.log("Poll response:", JSON.stringify(data));
+    const statusData = await statusRes.json();
+    console.log("Poll status response:", JSON.stringify(statusData));
 
-    // Agar Fal side par bhi error hai
-    if (!resultRes.ok) {
+    if (!statusRes.ok) {
       return res.status(500).json({
-        error: data.detail || data.message || "Fal poll failed",
-        raw: data,
+        error: statusData.detail || statusData.message || "Poll failed",
+        raw: statusData,
       });
     }
 
-    // COMPLETED case
-    if (data.status === "COMPLETED") {
+    const status = statusData.status;
+
+    if (status === "COMPLETED") {
+      const resultRes = await fetch(
+        `https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video/requests/${request_id}`,
+        {
+          headers: {
+            Authorization: `Key ${FAL_KEY}`,
+          },
+        }
+      );
+
+      const resultData = await resultRes.json();
+      console.log("Poll result response:", JSON.stringify(resultData));
+
       const videoUrl =
-        data?.output?.video?.url ||
-        data?.video?.url ||
-        data?.videoUrl;
+        resultData?.output?.video?.url ||
+        resultData?.video?.url ||
+        resultData?.videoUrl ||
+        null;
 
       if (!videoUrl) {
         return res.status(500).json({
-          error: "Video URL not found in Fal response",
-          raw: data,
+          error: "Video URL not found in response",
+          raw: resultData,
         });
       }
 
       return res.status(200).json({
         status: "COMPLETED",
         videoUrl,
-        // raw: data, // debugging ke liye rakh sakte ho
       });
     }
 
-    // FAILED case
-    if (data.status === "FAILED") {
-      return res.status(500).json({
+    if (status === "FAILED") {
+      return res.status(200).json({
         status: "FAILED",
         error: "Generation failed on Fal.ai",
-        raw: data,
       });
     }
 
-    // Abhi tak complete nahi hua
     return res.status(200).json({
-      status: data.status || "IN_QUEUE",
+      status: status || "IN_QUEUE",
     });
   } catch (err) {
     console.error("Poll error:", err);
