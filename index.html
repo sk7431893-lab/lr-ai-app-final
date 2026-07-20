@@ -341,9 +341,14 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
   const planInfo=PLANS.find(function(p){return p.id===user.plan;})||PLANS[0];
 
   useEffect(function(){
-    fetch("/api/status").then(function(r){return r.json();}).then(function(d){
-      setApiStatus(d.status==="ok"?"connected":"error");
-    }).catch(function(){setApiStatus("error");});
+    fetch("/api/status")
+      .then(function(r){return r.json();})
+      .then(function(d){
+        setApiStatus(d.status==="ok"?"connected":"error");
+      })
+      .catch(function(){
+        setApiStatus("error");
+      });
   },[]);
 
   useEffect(function(){
@@ -361,8 +366,17 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
     }else{
       clearInterval(progressRef.current);
     }
-    return function(){clearInterval(progressRef.current);};
+    return function(){
+      clearInterval(progressRef.current);
+    };
   },[generating]);
+
+  useEffect(function(){
+    return function(){
+      clearInterval(pollRef.current);
+      clearInterval(progressRef.current);
+    };
+  },[]);
 
   function handleEnhance(){
     if(!prompt.trim())return;
@@ -373,7 +387,10 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
   function handleFile(file){
     if(!file||!file.type.startsWith("image/"))return;
     const reader=new FileReader();
-    reader.onload=function(e){setUploadedImage(e.target.result);setUploadName(file.name);};
+    reader.onload=function(e){
+      setUploadedImage(e.target.result);
+      setUploadName(file.name);
+    };
     reader.readAsDataURL(file);
   }
 
@@ -385,45 +402,67 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
     setProgressMsg("Showing Demo Video");
     const base=DEMO_VIDEOS[Math.floor(Math.random()*DEMO_VIDEOS.length)];
     const newItem={
-      id:Date.now(),title:prompt.slice(0,30),category:"Demo",
-      duration:(isTrial?"5":duration)+"s",ratio:aspectRatio,
-      thumbnail:base.thumbnail,video:base.video,
-      gradient:"from-slate-500/30 to-gray-600/30",watermark:isTrial,isReal:false
+      id:Date.now(),
+      title:prompt.slice(0,30),
+      category:"Demo",
+      duration:(isTrial?"5":duration)+"s",
+      ratio:aspectRatio,
+      thumbnail:base.thumbnail,
+      video:base.video,
+      gradient:"from-slate-500/30 to-gray-600/30",
+      watermark:isTrial,
+      isReal:false
     };
     setActiveVideo(newItem);
     setVideoReady(true);
     setGenerating(false);
     setRecentVideos(function(prev){return [newItem,...prev.slice(0,5)];});
+
     if(isTrial){
       const u2={...user,videosLeft:user.videosLeft-1,totalVideos:user.totalVideos+1};
       setUser(u2);
-      setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
+      setUsers(function(prev){
+        return prev.map(function(u){return u.id===user.id?u2:u;});
+      });
+    }else{
+      const u2={...user,totalVideos:user.totalVideos+1};
+      setUser(u2);
+      setUsers(function(prev){
+        return prev.map(function(u){return u.id===user.id?u2:u;});
+      });
     }
   }
 
   async function handleGenerate(){
     if(!prompt.trim()||generating)return;
-    if(isTrial&&user.videosLeft<=0){setShowUpgrade(true);return;}
+    if(isTrial&&user.videosLeft<=0){
+      setShowUpgrade(true);
+      return;
+    }
 
     setGenerating(true);
     setVideoReady(false);
     setProgress(5);
+    setProgressMsg("Submitting to Kling AI...");
     setGenLog("Submitting job to Fal.ai...");
 
     try{
-      // Step 1: Submit job
       const body={
         prompt:prompt,
-        duration:isTrial?"5":duration,
+        duration:Number(isTrial?5:duration),
         aspect_ratio:aspectRatio
       };
-      if(uploadedImage)body.image_url=uploadedImage;
+
+      if(uploadedImage){
+        body.image_url=uploadedImage;
+      }
 
       const submitRes=await fetch("/api/submit",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify(body),
       });
+
       const submitData=await submitRes.json();
 
       if(!submitRes.ok){
@@ -432,24 +471,39 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
       }
 
       const requestId=submitData.request_id;
+
+      if(!requestId){
+        showDemoFallback("No request_id received");
+        return;
+      }
+
       setGenLog("Job submitted!\nRequest ID: "+requestId+"\nPolling every 5 seconds...");
       setProgress(15);
 
-      // Step 2: Poll for result
       let attempts=0;
-      const maxAttempts=72; // 6 minutes max
+      const maxAttempts=72;
+
+      clearInterval(pollRef.current);
 
       pollRef.current=setInterval(async function(){
         attempts++;
+
         try{
           const pollRes=await fetch("/api/poll",{
             method:"POST",
             headers:{"Content-Type":"application/json"},
             body:JSON.stringify({request_id:requestId}),
           });
+
           const pollData=await pollRes.json();
 
-          setGenLog("Status: "+pollData.status+" (attempt "+attempts+"/"+maxAttempts+")");
+          if(!pollRes.ok){
+            clearInterval(pollRef.current);
+            showDemoFallback(pollData.error||"Polling failed");
+            return;
+          }
+
+          setGenLog("Status: "+(pollData.status||"UNKNOWN")+" (attempt "+attempts+"/"+maxAttempts+")");
 
           if(pollData.status==="COMPLETED"&&pollData.videoUrl){
             clearInterval(pollRef.current);
@@ -459,12 +513,18 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
             setGenLog("Real AI Video Ready!");
 
             const newItem={
-              id:Date.now(),title:prompt.slice(0,30),category:uploadedImage?"Image-to-Video":"Text-to-Video",
-              duration:(isTrial?"5":duration)+"s",ratio:aspectRatio,
+              id:Date.now(),
+              title:prompt.slice(0,30),
+              category:uploadedImage?"Image-to-Video":"Text-to-Video",
+              duration:(isTrial?"5":duration)+"s",
+              ratio:aspectRatio,
               thumbnail:"https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=800&q=80",
-              video:pollData.videoUrl,gradient:"from-emerald-500/30 to-cyan-600/30",
-              watermark:isTrial,isReal:true,
+              video:pollData.videoUrl,
+              gradient:"from-emerald-500/30 to-cyan-600/30",
+              watermark:isTrial,
+              isReal:true,
             };
+
             setActiveVideo(newItem);
             setVideoReady(true);
             setGenerating(false);
@@ -473,16 +533,23 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
             if(isTrial){
               const u2={...user,videosLeft:user.videosLeft-1,totalVideos:user.totalVideos+1};
               setUser(u2);
-              setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
+              setUsers(function(prev){
+                return prev.map(function(u){return u.id===user.id?u2:u;});
+              });
             }else{
-              setUser(function(u){return {...u,totalVideos:u.totalVideos+1};});
+              const u2={...user,totalVideos:user.totalVideos+1};
+              setUser(u2);
+              setUsers(function(prev){
+                return prev.map(function(u){return u.id===user.id?u2:u;});
+              });
             }
+
             return;
           }
 
           if(pollData.status==="FAILED"){
             clearInterval(pollRef.current);
-            showDemoFallback("Generation failed on Fal.ai");
+            showDemoFallback(pollData.error||"Generation failed on Fal.ai");
             return;
           }
 
@@ -523,7 +590,9 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
         <div style={{position:"absolute",bottom:"-10%",right:"-10%",width:"35vw",height:"35vw",background:"radial-gradient(circle,rgba(168,85,247,0.07),transparent 60%)",borderRadius:"50%"}}/>
         <div className="absolute inset-0" style={{backgroundImage:"radial-gradient(rgba(34,211,238,0.02) 1px,transparent 1px)",backgroundSize:"40px 40px"}}/>
       </div>
+
       {showUpgrade&&<UpgradeModal onClose={function(){setShowUpgrade(false);}} onUpgrade={handleUpgrade}/>}
+
       <nav className="relative border-b border-white/5 px-6 py-4 flex items-center justify-between" style={{background:"rgba(5,8,22,0.85)",backdropFilter:"blur(20px)"}}>
         <LRLogo size={32}/>
         <div className="flex items-center gap-3">
@@ -533,12 +602,15 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
               {isTrial?"Trial: "+user.videosLeft+" left":planInfo.name}
             </div>
           }
+
           {isTrial&&<button onClick={function(){setShowUpgrade(true);}} className="px-4 py-2 rounded-xl text-white text-xs font-bold" style={{background:"linear-gradient(135deg,#f59e0b,#ef4444)"}}>Upgrade</button>}
+
           <div className="relative">
             <button onClick={function(){setShowProfile(!showProfile);}} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 hover:bg-white/5">
               <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{background:"linear-gradient(135deg,#22d3ee,#a855f7)"}}>{user.name[0].toUpperCase()}</div>
               <span className="text-sm text-slate-300 hidden md:block">{user.name}</span>
             </button>
+
             {showProfile&&(
               <div className="absolute right-0 top-full mt-2 w-56 glass neon-border rounded-2xl p-4 z-50" style={{background:"rgba(5,8,22,0.98)"}}>
                 <div className="text-sm font-semibold text-white mb-1">{user.name}</div>
@@ -552,6 +624,7 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
           </div>
         </div>
       </nav>
+
       <div className="relative max-w-7xl mx-auto px-4 py-8">
         {isOwner&&(
           <div className="mb-6 rounded-2xl border border-violet-400/25 bg-violet-400/5 px-6 py-4 flex items-center gap-4">
@@ -563,6 +636,7 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
             <div className={"ml-auto text-xs font-semibold px-3 py-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 "+statusInfo.c}>API: {statusInfo.l}</div>
           </div>
         )}
+
         {isTrial&&(
           <div className="mb-6 rounded-2xl border border-amber-400/25 bg-amber-400/5 px-6 py-4 flex flex-col md:flex-row md:items-center gap-4">
             <div className="flex-1">
@@ -572,6 +646,7 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
             <button onClick={function(){setShowUpgrade(true);}} className="px-5 py-2.5 rounded-xl text-white text-sm font-bold" style={{background:"linear-gradient(135deg,#f59e0b,#ef4444)"}}>Remove Limits</button>
           </div>
         )}
+
         <div className="grid xl:grid-cols-2 gap-6 mb-6">
           <div className="glass rounded-3xl p-6 neon-border">
             <div className="flex items-center justify-between mb-6">
@@ -583,45 +658,67 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
                 {statusInfo.l}
               </div>
             </div>
+
             <div className="mb-4">
               <label className="text-xs font-medium text-slate-300 mb-2 block">Your Prompt</label>
-              <textarea value={prompt} onChange={function(e){setPrompt(e.target.value);setEnhanced(false);}} placeholder="Describe your cinematic scene..."
-                className="input-style w-full min-h-[140px] px-4 py-4 rounded-2xl text-sm resize-none"/>
+              <textarea
+                value={prompt}
+                onChange={function(e){setPrompt(e.target.value);setEnhanced(false);}}
+                placeholder="Describe your cinematic scene..."
+                className="input-style w-full min-h-[140px] px-4 py-4 rounded-2xl text-sm resize-none"
+              />
               <div className="flex items-center justify-between mt-3">
                 <p className="text-xs text-slate-500">{enhanced?"✨ Enhanced":"Add mood, lighting, camera"}</p>
                 <button onClick={handleEnhance} className="px-4 py-2 rounded-xl bg-cyan-400/10 border border-cyan-400/30 text-cyan-300 text-xs hover:bg-cyan-400/20">✨ Enhance</button>
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
                 <p className="text-xs text-slate-400 mb-3">Aspect Ratio</p>
                 <div className="flex gap-2">
                   {["16:9","9:16","1:1"].map(function(r){return(
-                    <button key={r} onClick={function(){setAspectRatio(r);}}
+                    <button
+                      key={r}
+                      onClick={function(){setAspectRatio(r);}}
                       className={"flex-1 py-2 rounded-xl text-xs font-semibold "+(aspectRatio===r?"text-white":"bg-white/5 border border-white/10 text-slate-400")}
-                      style={aspectRatio===r?{background:"linear-gradient(135deg,#06b6d4,#3b82f6)"}:{}}>{r}</button>
+                      style={aspectRatio===r?{background:"linear-gradient(135deg,#06b6d4,#3b82f6)"}:{}}
+                    >
+                      {r}
+                    </button>
                   );})}
                 </div>
               </div>
+
               <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
                 <p className="text-xs text-slate-400 mb-3">Duration</p>
                 <div className="flex gap-2">
                   {["5","10"].map(function(d){return(
-                    <button key={d} onClick={function(){if(isTrial&&d==="10"){setShowUpgrade(true);return;}setDuration(d);}}
+                    <button
+                      key={d}
+                      onClick={function(){
+                        if(isTrial&&d==="10"){setShowUpgrade(true);return;}
+                        setDuration(d);
+                      }}
                       className={"flex-1 py-2 rounded-xl text-xs font-semibold "+(duration===d&&!(isTrial&&d==="10")?"text-white":"bg-white/5 border border-white/10 text-slate-400")+" "+(isTrial&&d==="10"?"opacity-40 cursor-not-allowed":"")}
-                      style={duration===d&&!(isTrial&&d==="10")?{background:"linear-gradient(135deg,#7c3aed,#a855f7)"}:{}}>
+                      style={duration===d&&!(isTrial&&d==="10")?{background:"linear-gradient(135deg,#7c3aed,#a855f7)"}:{}}
+                    >
                       {d}s{isTrial&&d==="10"?" 🔒":""}
                     </button>
                   );})}
                 </div>
               </div>
             </div>
+
             <div className="mb-5">
               <p className="text-xs text-slate-400 mb-2">Image-to-Video (Optional)</p>
-              <div onDragOver={function(e){e.preventDefault();setIsDragging(true);}} onDragLeave={function(){setIsDragging(false);}}
+              <div
+                onDragOver={function(e){e.preventDefault();setIsDragging(true);}}
+                onDragLeave={function(){setIsDragging(false);}}
                 onDrop={function(e){e.preventDefault();setIsDragging(false);handleFile(e.dataTransfer.files&&e.dataTransfer.files[0]);}}
                 onClick={function(){fileInputRef.current&&fileInputRef.current.click();}}
-                className={"rounded-2xl border-2 border-dashed p-4 cursor-pointer "+(isDragging?"border-cyan-400 bg-cyan-400/10":"border-white/10 bg-black/20 hover:border-cyan-400/40")}>
+                className={"rounded-2xl border-2 border-dashed p-4 cursor-pointer "+(isDragging?"border-cyan-400 bg-cyan-400/10":"border-white/10 bg-black/20 hover:border-cyan-400/40")}
+              >
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={function(e){handleFile(e.target.files&&e.target.files[0]);}}/>
                 {uploadedImage?(
                   <div className="flex items-center gap-4">
@@ -640,11 +737,16 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
                 )}
               </div>
             </div>
-            <button onClick={handleGenerate} disabled={generating||!prompt.trim()||(isTrial&&user.videosLeft<=0)}
+
+            <button
+              onClick={handleGenerate}
+              disabled={generating||!prompt.trim()||(isTrial&&user.videosLeft<=0)}
               className="w-full py-4 rounded-2xl text-base font-black text-white transition hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed mb-4"
-              style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)",boxShadow:"0 0 40px rgba(34,211,238,0.3)"}}>
+              style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)",boxShadow:"0 0 40px rgba(34,211,238,0.3)"}}
+            >
               {generating?"⏳ Generating... (2-4 min)":isTrial&&user.videosLeft<=0?"Trial Exhausted":"🎬 Generate Video"}
             </button>
+
             {(generating||progress>0)&&(
               <div className="rounded-2xl border border-cyan-400/20 bg-black/30 p-4">
                 <div className="flex justify-between text-sm mb-3">
@@ -660,6 +762,7 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
               </div>
             )}
           </div>
+
           <div className="glass rounded-3xl p-6" style={{border:"1px solid rgba(168,85,247,0.15)"}}>
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -670,6 +773,7 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
                 {videoReady?(activeVideo&&activeVideo.isReal?"✅ AI Generated":"Demo"):"Standby"}
               </div>
             </div>
+
             <div className={"relative rounded-2xl overflow-hidden bg-black border border-white/10 mb-5 "+aspectClass}>
               {!videoReady?(
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
@@ -681,14 +785,22 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
                 </div>
               ):(
                 <div className="absolute inset-0">
-                  <video key={activeVideo&&activeVideo.video} autoPlay loop controls className="w-full h-full object-cover"
-                    poster={activeVideo&&activeVideo.thumbnail} src={activeVideo&&activeVideo.video}/>
+                  <video
+                    key={activeVideo&&activeVideo.video}
+                    autoPlay
+                    loop
+                    controls
+                    className="w-full h-full object-cover"
+                    poster={activeVideo&&activeVideo.thumbnail}
+                    src={activeVideo&&activeVideo.video}
+                  />
                   {activeVideo&&activeVideo.isReal&&<div className="absolute top-3 left-3 px-2 py-1 rounded-full bg-emerald-400/20 border border-emerald-400/30 text-emerald-200 text-xs font-bold">✅ REAL AI</div>}
                   {(isTrial||(activeVideo&&activeVideo.watermark))&&<Watermark/>}
                   <a href={activeVideo&&activeVideo.video} download target="_blank" rel="noreferrer" className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-cyan-400/20 border border-cyan-400/30 text-cyan-200 text-xs font-semibold">⬇ Download</a>
                 </div>
               )}
             </div>
+
             <div className="grid grid-cols-3 gap-3">
               {[{l:"Engine",v:"Kling v1.6"},{l:"Backend",v:"Vercel Proxy"},{l:"Quality",v:planInfo.quality}].map(function(i){return(
                 <div key={i.l} className="rounded-xl border border-white/8 bg-black/20 p-3">
@@ -699,6 +811,7 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
             </div>
           </div>
         </div>
+
         <div className="glass rounded-3xl p-6" style={{border:"1px solid rgba(59,130,246,0.12)"}}>
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -707,10 +820,14 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
             </div>
             <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 text-xs">{recentVideos.length} videos</div>
           </div>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {recentVideos.map(function(item){return(
-              <button key={item.id} onClick={function(){setActiveVideo(item);setVideoReady(true);}}
-                className="group rounded-2xl overflow-hidden border border-white/10 bg-black/20 text-left transition-all hover:-translate-y-1 hover:border-cyan-400/30">
+              <button
+                key={item.id}
+                onClick={function(){setActiveVideo(item);setVideoReady(true);}}
+                className="group rounded-2xl overflow-hidden border border-white/10 bg-black/20 text-left transition-all hover:-translate-y-1 hover:border-cyan-400/30"
+              >
                 <div className="relative aspect-video overflow-hidden">
                   <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-500"/>
                   <div className={"absolute inset-0 bg-gradient-to-tr "+item.gradient+" mix-blend-screen"}/>
@@ -741,6 +858,7 @@ function App(){
   const [authMode,setAuthMode]=useState("login");
   const [currentUser,setCurrentUser]=useState(null);
   const [users,setUsers]=useState(INITIAL_USERS);
+
   return(
     <div>
       {page==="landing"&&<LandingPage onLogin={function(){setAuthMode("login");setPage("auth");}} onRegister={function(){setAuthMode("register");setPage("auth");}}/>}
