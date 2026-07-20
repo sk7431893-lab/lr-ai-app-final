@@ -1,3 +1,5 @@
+import fetch from 'node-fetch';
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -13,7 +15,7 @@ export default async function handler(req, res) {
   if (!FAL_KEY) return res.status(500).json({ error: "FAL_KEY missing" });
 
   try {
-    // Step 1: Submit job
+    // Step 1: Submit job to Fal.ai
     const submitRes = await fetch("https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video", {
       method: "POST",
       headers: {
@@ -33,33 +35,38 @@ export default async function handler(req, res) {
     const requestId = submitData.request_id;
     if (!requestId) return res.status(500).json({ error: "No request_id from Fal.ai" });
 
-    // Step 2: Poll for result (max 4 minutes)
-    let videoUrl = null;
+    // Step 2: Poll for result
     for (let i = 0; i < 48; i++) {
-      await new Promise(r => setTimeout(r, 5000)); // 5 sec wait
+      await new Promise(r => setTimeout(r, 5000));
 
-      const statusRes = await fetch(`https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video/requests/${requestId}`, {
-        headers: { "Authorization": `Key ${FAL_KEY}` },
-      });
+      const statusRes = await fetch(
+        `https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video/requests/${requestId}`,
+        {
+          headers: { "Authorization": `Key ${FAL_KEY}` },
+        }
+      );
 
       const statusData = await statusRes.json();
+      console.log(`Poll ${i + 1}:`, statusData.status);
 
-      if (statusData.status === "COMPLETED" || statusData.video) {
-        videoUrl = statusData.video?.url || statusData.videoUrl || statusData.output?.video?.url;
-        if (videoUrl) break;
+      if (statusData.status === "COMPLETED") {
+        const videoUrl =
+          statusData.output?.video?.url ||
+          statusData.video?.url ||
+          statusData.videoUrl;
+
+        if (videoUrl) return res.status(200).json({ videoUrl });
       }
 
       if (statusData.status === "FAILED") {
-        return res.status(500).json({ error: "Video generation failed on Fal.ai" });
+        return res.status(500).json({ error: "Video generation failed" });
       }
     }
 
-    if (!videoUrl) return res.status(504).json({ error: "Timeout - video took too long" });
-
-    return res.status(200).json({ videoUrl });
+    return res.status(504).json({ error: "Timeout - try again" });
 
   } catch (err) {
-    console.error("Generate error:", err);
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    console.error("Error:", err);
+    return res.status(500).json({ error: err.message });
   }
 }
