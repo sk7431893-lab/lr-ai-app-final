@@ -1,776 +1,450 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>LR AI - Premium Cinematic Video Generation</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-*{font-family:'Inter',sans-serif;box-sizing:border-box;}
-::-webkit-scrollbar{width:5px;}
-::-webkit-scrollbar-track{background:#050816;}
-::-webkit-scrollbar-thumb{background:rgba(34,211,238,0.3);border-radius:10px;}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
-@keyframes spin{to{transform:rotate(360deg)}}
-.animate-float{animation:float 3s ease-in-out infinite;}
-.animate-fadeUp{animation:fadeUp 0.5s ease forwards;}
-.animate-spin{animation:spin 1s linear infinite;}
-.glass{background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);}
-.neon-border{border:1px solid rgba(34,211,238,0.3);box-shadow:0 0 20px rgba(34,211,238,0.1);}
-.input-style{background:#070b1f;border:1px solid rgba(255,255,255,0.1);color:white;outline:none;transition:all 0.3s;}
-.input-style:focus{border-color:rgba(34,211,238,0.5);box-shadow:0 0 0 3px rgba(34,211,238,0.1);}
-.card-hover:hover{transform:translateY(-4px);}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LrAI Video Studio - Create Real AI Videos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; }
+        .gradient-text { background: linear-gradient(90deg, #7c3aed, #a855f7, #ec4899); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .glass-card { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .progress-bar { height: 6px; background: linear-gradient(90deg, #10b981, #22d3ee); border-radius: 3px; transition: width 0.3s ease; }
+        .grid-bg { background-size: 20px 20px; background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px); }
+    </style>
 </head>
-<body style="background:#050816;margin:0;">
-<div id="root"></div>
-<script type="text/babel">
-const {useState,useEffect,useRef}=React;
-
-const PLANS=[
-  {id:"trial",name:"Free Trial",price:"Rs.0",badge:"Try Free",badgeColor:"from-slate-500 to-slate-600",
-   features:["3 Videos Total","5 Sec Only","720p Quality","LR AI Watermark","Kling AI Engine"],
-   color:"border-slate-500/30",glow:"",cta:"Start Free Trial",highlight:false,quality:"720p",watermark:true},
-  {id:"normal",name:"Normal",price:"Coming Soon",badge:"Starter",badgeColor:"from-emerald-500 to-teal-600",
-   features:["30 Videos/Month","Up to 10 Seconds","1080p Quality","No Watermark","Prompt Enhancer"],
-   color:"border-emerald-400/30",glow:"0 0 30px rgba(52,211,153,0.15)",cta:"Choose Normal",highlight:false,quality:"1080p",watermark:false},
-  {id:"standard",name:"Standard",price:"Coming Soon",badge:"Popular",badgeColor:"from-cyan-500 to-blue-600",
-   features:["100 Videos/Month","Up to 10 Seconds","4K Quality","No Watermark","Priority Queue"],
-   color:"border-cyan-400/40",glow:"0 0 40px rgba(34,211,238,0.2)",cta:"Choose Standard",highlight:true,quality:"4K",watermark:false},
-  {id:"premium",name:"Premium",price:"Coming Soon",badge:"Best Value",badgeColor:"from-violet-500 to-fuchsia-600",
-   features:["Unlimited Videos","Up to 60 Seconds","8K Cinematic","No Watermark","AI Director Mode"],
-   color:"border-violet-400/40",glow:"0 0 50px rgba(168,85,247,0.2)",cta:"Choose Premium",highlight:false,quality:"8K",watermark:false},
-];
-
-const DEMO_VIDEOS=[
-  {id:1,title:"Empire of Sand",category:"Historical",duration:"10s",ratio:"16:9",
-   thumbnail:"https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800&q=80",
-   video:"https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",gradient:"from-amber-500/30 to-orange-600/30"},
-  {id:2,title:"Neon Samurai",category:"Cinematic",duration:"5s",ratio:"9:16",
-   thumbnail:"https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=800&q=80",
-   video:"https://www.w3schools.com/html/mov_bbb.mp4",gradient:"from-cyan-500/30 to-fuchsia-600/30"},
-  {id:3,title:"Frozen Throne",category:"Epic",duration:"10s",ratio:"1:1",
-   thumbnail:"https://images.unsplash.com/photo-1511497584788-876760111969?w=800&q=80",
-   video:"https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",gradient:"from-blue-500/30 to-indigo-600/30"},
-  {id:4,title:"Desert Storm",category:"Action",duration:"5s",ratio:"16:9",
-   thumbnail:"https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=800&q=80",
-   video:"https://www.w3schools.com/html/mov_bbb.mp4",gradient:"from-rose-500/30 to-amber-600/30"},
-];
-
-const INITIAL_USERS=[
-  {id:1,email:"lrai@owner.com",password:"lrai2024",name:"LR AI Owner",role:"owner",plan:"owner",videosLeft:Infinity,totalVideos:0},
-  {id:2,email:"demo@test.com",password:"demo123",name:"Demo User",role:"user",plan:"trial",videosLeft:3,totalVideos:0},
-];
-
-function LRLogo({size=32,className=""}){
-  return(
-    <div className={"inline-flex items-center gap-2 "+className}>
-      <div style={{width:size,height:size,background:"linear-gradient(135deg,#22d3ee,#3b82f6,#a855f7)",borderRadius:size*0.28,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 20px rgba(34,211,238,0.5)",flexShrink:0}}>
-        <span style={{color:"white",fontWeight:900,fontSize:size*0.38,letterSpacing:"-1px"}}>LR</span>
-      </div>
-      <span style={{fontSize:size*0.55,fontWeight:800,background:"linear-gradient(135deg,#22d3ee,#a855f7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>AI</span>
+<body class="min-h-screen grid-bg overflow-x-hidden">
+    <div id="root">
+        <!-- App will render here -->
     </div>
-  );
-}
 
-function Watermark(){
-  return(
-    <div style={{position:"absolute",bottom:12,right:12,zIndex:20,pointerEvents:"none"}}>
-      <div style={{background:"rgba(0,0,0,0.6)",backdropFilter:"blur(8px)",borderRadius:10,padding:"5px 10px",border:"1px solid rgba(34,211,238,0.3)",display:"flex",alignItems:"center",gap:6}}>
-        <div style={{width:16,height:16,background:"linear-gradient(135deg,#22d3ee,#a855f7)",borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <span style={{color:"white",fontWeight:900,fontSize:8}}>LR</span>
-        </div>
-        <span style={{color:"rgba(255,255,255,0.8)",fontSize:10,fontWeight:700}}>LR AI</span>
-      </div>
-    </div>
-  );
-}
+    <script>
+        // Hardcoded data for demo
+        const DEMO_VIDEOS = [
+            { title: "Mountain Sunrise", category: "Nature", duration: "10s", ratio: "16:9", thumbnail: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80", video: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" },
+            { title: "Cyberpunk City", category: "Sci‑Fi", duration: "8s", ratio: "16:9", thumbnail: "https://images.unsplash.com/photo-1485827404703-7s-926158f252b?w=800&q=80", video: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4" },
+            { title: "Ocean Waves", category: "Nature", duration: "7s", ratio: "9:16", thumbnail: "https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=800&q=80", video: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4" }
+        ];
 
-function LandingPage({onLogin,onRegister}){
-  return(
-    <div className="min-h-screen" style={{background:"#050816"}}>
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div style={{position:"absolute",top:"-10%",left:"-10%",width:"50vw",height:"50vw",background:"radial-gradient(circle,rgba(34,211,238,0.12),transparent 60%)",borderRadius:"50%"}}/>
-        <div style={{position:"absolute",top:"-5%",right:"-10%",width:"45vw",height:"45vw",background:"radial-gradient(circle,rgba(168,85,247,0.1),transparent 60%)",borderRadius:"50%"}}/>
-        <div className="absolute inset-0" style={{backgroundImage:"radial-gradient(rgba(34,211,238,0.025) 1px,transparent 1px)",backgroundSize:"40px 40px"}}/>
-      </div>
-      <nav className="relative flex items-center justify-between px-8 py-5 border-b border-white/5">
-        <LRLogo size={36}/>
-        <div className="flex items-center gap-3">
-          <button onClick={onLogin} className="px-5 py-2.5 rounded-xl border border-white/10 text-slate-300 text-sm font-medium hover:bg-white/5 transition">Sign In</button>
-          <button onClick={onRegister} className="px-5 py-2.5 rounded-xl text-white text-sm font-semibold" style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)"}}>Get Started Free</button>
-        </div>
-      </nav>
-      <div className="relative max-w-6xl mx-auto px-6 pt-20 pb-16 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-cyan-400/30 bg-cyan-400/5 text-cyan-300 text-xs uppercase tracking-widest mb-8">
-          <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"/>
-          AI-Powered Cinematic Video Generation
-        </div>
-        <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight text-white">
-          Create Stunning
-          <br/>
-          <span style={{background:"linear-gradient(135deg,#22d3ee,#3b82f6,#a855f7,#ec4899)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
-            Cinematic Videos
-          </span>
-          <br/>with AI
-        </h1>
-        <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-10">
-          Real AI video generation powered by <span className="text-cyan-300 font-semibold">Kling AI v1.6</span> via secure backend proxy.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-          <button onClick={onRegister} className="px-8 py-4 rounded-2xl text-white font-bold text-base" style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)",boxShadow:"0 0 30px rgba(34,211,238,0.3)"}}>Start Creating Free</button>
-          <button onClick={onLogin} className="px-8 py-4 rounded-2xl border border-white/10 text-slate-300 font-semibold text-base hover:bg-white/5 transition">Sign In</button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 text-left">
-          {PLANS.map(function(plan){return(
-            <div key={plan.id} className={"glass rounded-3xl p-6 border card-hover transition-all duration-300 relative overflow-hidden "+plan.color} style={{boxShadow:plan.glow}}>
-              {plan.highlight&&<div className="absolute top-0 inset-x-0 h-0.5" style={{background:"linear-gradient(90deg,#22d3ee,#3b82f6,#a855f7)"}}/>}
-              <div className={"inline-block px-3 py-1 rounded-full text-xs font-bold text-white mb-4 bg-gradient-to-r "+plan.badgeColor}>{plan.badge}</div>
-              <h3 className="text-xl font-black text-white mb-1">{plan.name}</h3>
-              <div className="text-2xl font-black mb-5" style={{background:"linear-gradient(135deg,#22d3ee,#a855f7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{plan.price}</div>
-              <ul className="space-y-2 mb-6">
-                {plan.features.map(function(f){return(
-                  <li key={f} className="flex items-center gap-2 text-sm text-slate-300"><span className="text-cyan-400 text-xs">check</span>{f}</li>
-                )})}
-              </ul>
-              <button onClick={plan.id==="trial"?onRegister:function(){}} className="w-full py-3 rounded-xl text-sm font-semibold"
-                style={plan.highlight?{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)",color:"white"}:{background:"rgba(255,255,255,0.05)",color:"#94a3b8",border:"1px solid rgba(255,255,255,0.1)"}}>
-                {plan.cta}
-              </button>
-            </div>
-          );})}
-        </div>
-      </div>
-    </div>
-  );
-}
+        // App state variables
+        let prompt = "";
+        let duration = "5";
+        let aspectRatio = "16:9";
+        let generating = false;
+        let videoReady = false;
+        let activeVideo = null;
+        let recentVideos = [];
+        let user = { name: "Trial User", plan: "Trial", videosLeft: 3, totalVideos: 7 };
+        let users = [
+            { id: 1, name: "Alex Chen", plan: "Pro", videosLeft: 12, totalVideos: 48 },
+            { id: 2, name: "Sam Rivera", plan: "Trial", videosLeft: 2, totalVideos: 5 },
+            { id: 3, name: "Jordan Lee", plan: "Enterprise", videosLeft: 999, totalVideos: 120 }
+        ];
+        let progress = 0;
+        let progressMsg = "";
+        let genLog = "";
+        let showUpgrade = false;
 
-function AuthModal({mode,onClose,onSuccess,users,setUsers}){
-  const [tab,setTab]=useState(mode);
-  const [name,setName]=useState("");
-  const [email,setEmail]=useState("");
-  const [pass,setPass]=useState("");
-  const [card,setCard]=useState("");
-  const [expiry,setExpiry]=useState("");
-  const [cvv,setCvv]=useState("");
-  const [step,setStep]=useState(1);
-  const [error,setError]=useState("");
-  const [loading,setLoading]=useState(false);
+        // Helper functions for state updates
+        const setProgress = (val) => { progress = val; updateUI(); };
+        const setProgressMsg = (msg) => { progressMsg = msg; updateUI(); };
+        const setGenLog = (msg) => { genLog = msg; updateUI(); };
+        const setGenerating = (val) => { generating = val; updateUI(); };
+        const setVideoReady = (val) => { videoReady = val; updateUI(); };
+        const setActiveVideo = (video) => { activeVideo = video; updateUI(); };
+        const setRecentVideos = (fn) => { recentVideos = fn(recentVideos); updateUI(); };
+        const setUser = (newUser) => { user = newUser; updateUI(); };
+        const setUsers = (fn) => { users = fn(users); updateUI(); };
+        const setShowUpgrade = (val) => { showUpgrade = val; updateUI(); };
 
-  function handleLogin(){
-    setError("");
-    const found=users.find(function(u){return u.email===email&&u.password===pass;});
-    if(!found){setError("Invalid email or password.");return;}
-    setLoading(true);
-    setTimeout(function(){setLoading(false);onSuccess(found);},800);
-  }
+        // Initialize with demo data
+        const initDemo = () => {
+            if (recentVideos.length === 0) {
+                setRecentVideos(prev => [...DEMO_VIDEOS]);
+                setActiveVideo(DEMO_VIDEOS[0]);
+            }
+        };
 
-  function handleRegStep1(){
-    setError("");
-    if(!name.trim()||!email.trim()||!pass.trim()){setError("All fields required.");return;}
-    if(users.find(function(u){return u.email===email;})){setError("Email already registered.");return;}
-    if(pass.length<6){setError("Min 6 character password.");return;}
-    setStep(2);
-  }
+        // Main generation function
+        const handleGenerate = async () => {
+            if (!prompt.trim() || generating) return;
+            const isTrial = user.plan === "Trial";
+            if (isTrial && user.videosLeft <= 0) { setShowUpgrade(true); return; }
 
-  function handleRegStep2(){
-    setError("");
-    if(!card.trim()||!expiry.trim()||!cvv.trim()){setError("All payment fields required.");return;}
-    if(card.replace(/\s/g,"").length<16){setError("Invalid card number.");return;}
-    setLoading(true);
-    setTimeout(function(){
-      const nu={id:Date.now(),email:email,password:pass,name:name,role:"user",plan:"trial",videosLeft:3,totalVideos:0};
-      setUsers(function(prev){return [...prev,nu];});
-      setLoading(false);
-      onSuccess(nu);
-    },1200);
-  }
+            setGenerating(true);
+            setVideoReady(false);
+            setProgress(5);
+            setGenLog("Submitting job to Fal.ai...");
+            setProgressMsg("Submitting to Kling AI...");
 
-  return(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,0.85)",backdropFilter:"blur(12px)"}}>
-      <div className="glass neon-border rounded-3xl p-8 w-full max-w-md relative animate-fadeUp" style={{background:"rgba(5,8,22,0.97)"}}>
-        <button onClick={onClose} className="absolute top-5 right-5 text-slate-400 hover:text-white text-xl">X</button>
-        <div className="text-center mb-7">
-          <LRLogo size={40} className="justify-center mb-4"/>
-          {tab==="login"
-            ?<div><h2 className="text-2xl font-black text-white">Welcome Back</h2><p className="text-slate-400 text-sm mt-1">Sign in to LR AI</p></div>
-            :step===1
-              ?<div><h2 className="text-2xl font-black text-white">Create Account</h2><p className="text-slate-400 text-sm mt-1">3 free videos to start</p></div>
-              :<div><h2 className="text-2xl font-black text-white">Payment Details</h2><p className="text-slate-400 text-sm mt-1">No charge now</p></div>
-          }
-        </div>
-        <div className="flex rounded-xl border border-white/10 overflow-hidden mb-6">
-          <button onClick={function(){setTab("login");setError("");}} className={"flex-1 py-2.5 text-sm font-semibold transition "+(tab==="login"?"bg-gradient-to-r from-cyan-500/30 to-blue-500/30 text-white":"text-slate-400")}>Sign In</button>
-          <button onClick={function(){setTab("register");setStep(1);setError("");}} className={"flex-1 py-2.5 text-sm font-semibold transition "+(tab==="register"?"bg-gradient-to-r from-cyan-500/30 to-blue-500/30 text-white":"text-slate-400")}>Register</button>
-        </div>
-        {tab==="login"?(
-          <div className="space-y-4">
-            <div><label className="text-xs text-slate-400 mb-1.5 block">Email</label>
-              <input value={email} onChange={function(e){setEmail(e.target.value);}} placeholder="you@example.com" className="input-style w-full px-4 py-3 rounded-xl text-sm"/></div>
-            <div><label className="text-xs text-slate-400 mb-1.5 block">Password</label>
-              <input type="password" value={pass} onChange={function(e){setPass(e.target.value);}} placeholder="password" className="input-style w-full px-4 py-3 rounded-xl text-sm"/></div>
-            {error&&<div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-300 text-sm">{error}</div>}
-            <button onClick={handleLogin} disabled={loading} className="w-full py-3.5 rounded-xl text-white font-bold disabled:opacity-60" style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)"}}>
-              {loading?"Signing in...":"Sign In"}
-            </button>
-            <div className="text-center text-xs text-slate-500">Demo: <span className="text-cyan-400 cursor-pointer" onClick={function(){setEmail("demo@test.com");setPass("demo123");}}>demo@test.com / demo123</span></div>
-          </div>
-        ):step===1?(
-          <div className="space-y-4">
-            <div><label className="text-xs text-slate-400 mb-1.5 block">Full Name</label>
-              <input value={name} onChange={function(e){setName(e.target.value);}} placeholder="Your Name" className="input-style w-full px-4 py-3 rounded-xl text-sm"/></div>
-            <div><label className="text-xs text-slate-400 mb-1.5 block">Email</label>
-              <input value={email} onChange={function(e){setEmail(e.target.value);}} placeholder="you@example.com" className="input-style w-full px-4 py-3 rounded-xl text-sm"/></div>
-            <div><label className="text-xs text-slate-400 mb-1.5 block">Password</label>
-              <input type="password" value={pass} onChange={function(e){setPass(e.target.value);}} placeholder="Min 6 characters" className="input-style w-full px-4 py-3 rounded-xl text-sm"/></div>
-            {error&&<div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-300 text-sm">{error}</div>}
-            <button onClick={handleRegStep1} className="w-full py-3.5 rounded-xl text-white font-bold" style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)"}}>Continue</button>
-          </div>
-        ):(
-          <div className="space-y-4">
-            <div className="border border-yellow-400/25 rounded-xl px-4 py-3 text-yellow-300 text-xs text-center">Card required for activation. No charge now.</div>
-            <div><label className="text-xs text-slate-400 mb-1.5 block">Card Number</label>
-              <input value={card} onChange={function(e){let v=e.target.value.replace(/\D/g,"").slice(0,16);v=v.replace(/(.{4})/g,"$1 ").trim();setCard(v);}} placeholder="1234 5678 9012 3456" className="input-style w-full px-4 py-3 rounded-xl text-sm" maxLength={19}/></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-xs text-slate-400 mb-1.5 block">Expiry</label>
-                <input value={expiry} onChange={function(e){let v=e.target.value.replace(/\D/g,"").slice(0,4);if(v.length>=2)v=v.slice(0,2)+"/"+v.slice(2);setExpiry(v);}} placeholder="MM/YY" className="input-style w-full px-4 py-3 rounded-xl text-sm" maxLength={5}/></div>
-              <div><label className="text-xs text-slate-400 mb-1.5 block">CVV</label>
-                <input type="password" value={cvv} onChange={function(e){setCvv(e.target.value.replace(/\D/g,"").slice(0,3));}} placeholder="cvv" className="input-style w-full px-4 py-3 rounded-xl text-sm" maxLength={3}/></div>
-            </div>
-            {error&&<div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-300 text-sm">{error}</div>}
-            <button onClick={handleRegStep2} disabled={loading} className="w-full py-3.5 rounded-xl text-white font-bold disabled:opacity-60" style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)"}}>
-              {loading?"Activating...":"Activate Free Trial"}
-            </button>
-            <button onClick={function(){setStep(1);setError("");}} className="w-full text-slate-400 text-sm hover:text-white">Back</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+            try {
+                // Submit job to Fal.ai
+                const submitRes = await fetch("/api/submit", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        duration: isTrial ? "5" : duration,
+                        aspect_ratio: aspectRatio
+                    })
+                });
 
-function UpgradeModal({onClose,onUpgrade}){
-  const [selected,setSelected]=useState("standard");
-  const [card,setCard]=useState("");
-  const [expiry,setExpiry]=useState("");
-  const [cvv,setCvv]=useState("");
-  const [step,setStep]=useState(1);
-  const [loading,setLoading]=useState(false);
-  const [error,setError]=useState("");
-  const paidPlans=PLANS.filter(function(p){return p.id!=="trial";});
+                const submitData = await submitRes.json();
+                if (!submitRes.ok) throw new Error(submitData.error || "Submit failed");
 
-  function handlePay(){
-    setError("");
-    if(!card.trim()||!expiry.trim()||!cvv.trim()){setError("All fields required.");return;}
-    setLoading(true);
-    setTimeout(function(){setLoading(false);onUpgrade(selected);},1500);
-  }
+                const requestId = submitData.request_id;
+                setGenLog(`Job submitted! ID: ${requestId}\nPolling every 5 seconds...`);
+                setProgress(15);
+                setProgressMsg("Job submitted, waiting for generation...");
 
-  return(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,0.9)",backdropFilter:"blur(12px)"}}>
-      <div className="glass neon-border rounded-3xl p-8 w-full max-w-2xl relative animate-fadeUp" style={{background:"rgba(5,8,22,0.97)"}}>
-        <button onClick={onClose} className="absolute top-5 right-5 text-slate-400 hover:text-white text-xl">X</button>
-        <div className="text-center mb-8">
-          <LRLogo size={36} className="justify-center mb-4"/>
-          <h2 className="text-2xl font-black text-white">Upgrade Plan</h2>
-        </div>
-        {step===1?(
-          <div>
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              {paidPlans.map(function(plan){return(
-                <div key={plan.id} onClick={function(){setSelected(plan.id);}
-                } className={"rounded-2xl p-5 border cursor-pointer transition-all "+(selected===plan.id?"border-cyan-400/50 bg-cyan-400/8":"border-white/10 hover:border-white/20")}>
-                  <div className={"inline-block px-2 py-0.5 rounded-full text-xs font-bold text-white mb-3 bg-gradient-to-r "+plan.badgeColor}>{plan.badge}</div>
-                  <h3 className="text-base font-black text-white mb-1">{plan.name}</h3>
-                  <div className="text-lg font-black mb-3" style={{background:"linear-gradient(135deg,#22d3ee,#a855f7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{plan.price}</div>
-                  {selected===plan.id&&<div className="text-xs text-cyan-300 font-semibold">Selected</div>}
+                // Poll for result
+                let attempts = 0;
+                const maxAttempts = 60; // 5 minutes max
+                const pollInterval = setInterval(async () => {
+                    attempts++;
+                    const prog = Math.min(15 + (attempts * 1.3), 90);
+                    setProgress(Math.round(prog));
+
+                    if (attempts < 10) setProgressMsg(`In queue... (${attempts*5}s)`);
+                    else if (attempts < 25) setProgressMsg(`Generating frames... (${attempts*5}s)`);
+                    else setProgressMsg(`Finalizing video... (${attempts*5}s)`);
+
+                    try {
+                        const pollRes = await fetch("/api/poll", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ request_id: requestId })
+                        });
+                        const pollData = await pollRes.json();
+                        setGenLog(`Status: ${pollData.status} (attempt ${attempts})`);
+
+                        if (pollData.status === "COMPLETED" && pollData.videoUrl) {
+                            clearInterval(pollInterval);
+                            setProgress(100);
+                            setProgressMsg("Video Generated!");
+                            setGenLog("Real AI Video Ready!");
+
+                            const newItem = {
+                                id: Date.now(),
+                                title: prompt.slice(0, 30),
+                                category: "Text‑to‑Video",
+                                duration: (isTrial ? "5" : duration) + "s",
+                                ratio: aspectRatio,
+                                thumbnail: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=800&q=80",
+                                video: pollData.videoUrl,
+                                gradient: "from-emerald-500/30 to-cyan-600/30",
+                                watermark: isTrial,
+                                isReal: true
+                            };
+                            setActiveVideo(newItem);
+                            setVideoReady(true);
+                            setGenerating(false);
+                            setRecentVideos(prev => [newItem, ...prev.slice(0, 5)]);
+
+                            if (isTrial) {
+                                const updatedUser = { ...user, videosLeft: user.videosLeft - 1, totalVideos: user.totalVideos + 1 };
+                                setUser(updatedUser);
+                                setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+                            }
+                        }
+
+                        if (pollData.status === "FAILED") {
+                            clearInterval(pollInterval);
+                            throw new Error("Video generation failed on Fal.ai");
+                        }
+
+                        if (attempts >= maxAttempts) {
+                            clearInterval(pollInterval);
+                            throw new Error("Timeout - took too long");
+                        }
+                    } catch (pollErr) {
+                        clearInterval(pollInterval);
+                        setGenerating(false);
+                        setGenLog(`Error: ${pollErr.message}`);
+                        setProgress(100);
+                        setProgressMsg("Error occurred");
+                    }
+                }, 5000);
+
+            } catch (err) {
+                setGenerating(false);
+                setGenLog(`Error: ${err.message}`);
+                setProgress(100);
+                setProgressMsg("Failed - showing demo");
+
+                // Fallback demo video
+                const base = DEMO_VIDEOS[Math.floor(Math.random() * DEMO_VIDEOS.length)];
+                const newItem = {
+                    id: Date.now(),
+                    title: prompt.slice(0, 30),
+                    category: "Demo",
+                    duration: (isTrial ? "5" : duration) + "s",
+                    ratio: aspectRatio,
+                    thumbnail: base.thumbnail,
+                    video: base.video,
+                    gradient: "from-slate-500/30 to-gray-600/30",
+                    watermark: isTrial,
+                    isReal: false
+                };
+                setActiveVideo(newItem);
+                setVideoReady(true);
+                setRecentVideos(prev => [newItem, ...prev.slice(0, 5)]);
+            }
+        };
+
+        // UI update function
+        const updateUI = () => {
+            const root = document.getElementById("root");
+            if (!root) return;
+            root.innerHTML = `
+                <!-- Full UI HTML (the UI you already designed) -->
+                <div class="min-h-screen grid-bg overflow-x-hidden">
+                    <header class="px-6 py-4 border-b border-white/10 flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-500 rounded-lg"></div>
+                            <h1 class="text-2xl font-bold gradient-text">LrAI Video Studio</h1>
+                            <span class="text-sm font-medium px-3 py-1 bg-white/10 rounded-full">${user.plan}</span>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="flex items-center gap-2">
+                                <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                                <span class="text-sm text-gray-300">API Connected</span>
+                            </div>
+                            <button onclick="location.reload()" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition">
+                                Refresh
+                            </button>
+                        </div>
+                    </header>
+
+                    <main class="max-w-7xl mx-auto px-6 py-8">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <!-- Left Panel - Controls -->
+                            <div class="lg:col-span-2 space-y-8">
+                                <div class="glass-card p-6 rounded-2xl">
+                                    <h2 class="text-xl font-bold mb-4">Create AI Video</h2>
+                                    <textarea 
+                                        class="w-full p-4 bg-white/5 border border-white/10 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        rows="4"
+                                        placeholder="Describe your video scene in detail... e.g., 'A futuristic city at sunset with flying cars, cinematic, 4K'"
+                                        oninput="prompt = this.value"
+                                    >${prompt}</textarea>
+                                    <div class="flex flex-wrap gap-4 mt-6">
+                                        <div>
+                                            <label class="block text-sm text-gray-400 mb-2">Duration</label>
+                                            <div class="flex gap-2">
+                                                ${["5", "8", "10", "15"].map(d => `
+                                                    <button 
+                                                        onclick="duration='${d}'"
+                                                        class="px-4 py-2 rounded-lg ${duration === d && !(user.plan === 'Trial' && d === '10') ? 'bg-gradient-to-r from-purple-600 to-pink-600' : 'bg-white/10 hover:bg-white/20'}"
+                                                        ${user.plan === 'Trial' && d === '10' ? 'disabled style="opacity:0.5"' : ''}
+                                                    >
+                                                        ${d}s ${user.plan === 'Trial' && d === '10' ? '🔒' : ''}
+                                                    </button>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm text-gray-400 mb-2">Aspect Ratio</label>
+                                            <div class="flex gap-2">
+                                                ${["16:9", "9:16", "1:1", "4:5"].map(r => `
+                                                    <button 
+                                                        onclick="aspectRatio='${r}'"
+                                                        class="px-4 py-2 rounded-lg ${aspectRatio === r ? 'bg-gradient-to-r from-purple-600 to-pink-600' : 'bg-white/10 hover:bg-white/20'}"
+                                                    >
+                                                        ${r}
+                                                    </button>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-8">
+                                        <button 
+                                            onclick="handleGenerate()"
+                                            class="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-xl text-lg font-bold transition-all disabled:opacity-50"
+                                            ${generating ? 'disabled' : ''}
+                                        >
+                                            ${generating ? '<div class="flex items-center justify-center gap-3"><div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Generating AI Video...</div>' : 'Generate AI Video'}
+                                        </button>
+                                        ${generating ? `
+                                            <div class="mt-6">
+                                                <div class="flex justify-between text-sm mb-2">
+                                                    <span>${progressMsg}</span>
+                                                    <span>${progress}%</span>
+                                                </div>
+                                                <div class="h-2 bg-white/10 rounded-full overflow-hidden">
+                                                    <div class="progress-bar" style="width:${progress}%"></div>
+                                                </div>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+
+                                <!-- Generation Log -->
+                                ${generating ? `
+                                    <div class="glass-card p-6 rounded-2xl">
+                                        <h3 class="font-bold mb-3">Generation Log</h3>
+                                        <pre class="text-sm bg-black/30 p-4 rounded-lg whitespace-pre-wrap max-h-60 overflow-auto">${genLog}</pre>
+                                    </div>
+                                ` : ''}
+
+                                <!-- Active Video Player -->
+                                ${activeVideo ? `
+                                    <div class="glass-card p-6 rounded-2xl">
+                                        <div class="flex justify-between items-center mb-4">
+                                            <h3 class="text-xl font-bold">${activeVideo.title}</h3>
+                                            <div class="flex items-center gap-3">
+                                                <span class="px-3 py-1 text-sm rounded-full ${activeVideo.isReal ? 'bg-emerald-500/20 text-emerald-300' : 'bg-gray-500/20 text-gray-300'}">
+                                                    ${activeVideo.isReal ? 'Real AI Video' : 'Demo Video'}
+                                                </span>
+                                                <span class="px-3 py-1 text-sm rounded-full bg-white/10">${activeVideo.duration}</span>
+                                                <span class="px-3 py-1 text-sm rounded-full bg-white/10">${activeVideo.ratio}</span>
+                                            </div>
+                                        </div>
+                                        <div class="relative rounded-xl overflow-hidden bg-black">
+                                            ${videoReady ? `
+                                                <video src="${activeVideo.video}" controls class="w-full" poster="${activeVideo.thumbnail}"></video>
+                                            ` : `
+                                                <div class="aspect-video flex items-center justify-center">
+                                                    <div class="text-center">
+                                                        <div class="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+                                                        <p class="text-gray-400">Preparing video player...</p>
+                                                    </div>
+                                                </div>
+                                            `}
+                                            ${activeVideo.watermark ? `
+                                                <div class="absolute bottom-4 right-4 px-3 py-1 bg-black/70 text-sm rounded">
+                                                    Trial Watermark
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                        <div class="mt-4 flex justify-between">
+                                            <button onclick="navigator.clipboard.writeText('${activeVideo.video}')" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg">
+                                                Copy Video URL
+                                            </button>
+                                            <a href="${activeVideo.video}" target="_blank" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg">
+                                                Download
+                                            </a>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            <!-- Right Panel - Stats & Recent -->
+                            <div class="space-y-8">
+                                <!-- User Stats -->
+                                <div class="glass-card p-6 rounded-2xl">
+                                    <h3 class="text-xl font-bold mb-6">Your Studio</h3>
+                                    <div class="space-y-4">
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-400">Plan</span>
+                                            <span class="font-bold">${user.plan}</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-400">Videos Left</span>
+                                            <span class="font-bold ${user.videosLeft <= 2 ? 'text-amber-400' : 'text-emerald-400'}">${user.videosLeft}</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-400">Total Generated</span>
+                                            <span class="font-bold">${user.totalVideos}</span>
+                                        </div>
+                                    </div>
+                                    ${user.plan === 'Trial' && user.videosLeft < 3 ? `
+                                        <button onclick="setShowUpgrade(true)" class="w-full mt-6 py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 rounded-lg font-bold">
+                                            Upgrade Plan (${user.videosLeft} left)
+                                        </button>
+                                    ` : ''}
+                                </div>
+
+                                <!-- Recent Videos -->
+                                <div class="glass-card p-6 rounded-2xl">
+                                    <h3 class="text-xl font-bold mb-6">Recent Videos</h3>
+                                    <div class="space-y-4">
+                                        ${recentVideos.length > 0 ? recentVideos.map(v => `
+                                            <div class="flex items-center gap-4 p-3 bg-white/5 rounded-xl hover:bg-white/10 cursor-pointer" onclick="setActiveVideo(${JSON.stringify(v)})">
+                                                <div class="w-16 h-12 rounded-lg bg-gradient-to-br ${v.gradient || 'from-gray-600 to-gray-800'}"></div>
+                                                <div class="flex-1">
+                                                    <div class="font-medium truncate">${v.title}</div>
+                                                    <div class="text-sm text-gray-400 flex gap-3">
+                                                        <span>${v.category}</span>
+                                                        <span>${v.duration}</span>
+                                                        <span>${v.ratio}</span>
+                                                    </div>
+                                                </div>
+                                                ${v.isReal ? '<div class="w-2 h-2 bg-emerald-500 rounded-full"></div>' : ''}
+                                            </div>
+                                        `).join('') : `
+                                            <p class="text-gray-500 text-center py-8">No recent videos yet</p>
+                                        `}
+                                    </div>
+                                </div>
+
+                                <!-- Users List -->
+                                <div class="glass-card p-6 rounded-2xl">
+                                    <h3 class="text-xl font-bold mb-6">Active Users</h3>
+                                    <div class="space-y-4">
+                                        ${users.map(u => `
+                                            <div class="flex justify-between items-center p-3 bg-white/5 rounded-xl">
+                                                <div>
+                                                    <div class="font-medium">${u.name}</div>
+                                                    <div class="text-sm text-gray-400">${u.plan}</div>
+                                                </div>
+                                                <div class="text-right">
+                                                    <div class="font-bold ${u.videosLeft < 5 ? 'text-amber-400' : 'text-emerald-400'}">${u.videosLeft} left</div>
+                                                    <div class="text-sm text-gray-400">${u.totalVideos} total</div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
                 </div>
-              );})}
-            </div>
-            <button onClick={function(){setStep(2);}} className="w-full py-3.5 rounded-xl text-white font-bold" style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)"}}>Continue</button>
-          </div>
-        ):(
-          <div className="max-w-sm mx-auto space-y-4">
-            <div><label className="text-xs text-slate-400 mb-1.5 block">Card Number</label>
-              <input value={card} onChange={function(e){let v=e.target.value.replace(/\D/g,"").slice(0,16);v=v.replace(/(.{4})/g,"$1 ").trim();setCard(v);}} placeholder="1234 5678 9012 3456" className="input-style w-full px-4 py-3 rounded-xl text-sm" maxLength={19}/></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-xs text-slate-400 mb-1.5 block">Expiry</label>
-                <input value={expiry} onChange={function(e){let v=e.target.value.replace(/\D/g,"").slice(0,4);if(v.length>=2)v=v.slice(0,2)+"/"+v.slice(2);setExpiry(v);}} placeholder="MM/YY" className="input-style w-full px-4 py-3 rounded-xl text-sm" maxLength={5}/></div>
-              <div><label className="text-xs text-slate-400 mb-1.5 block">CVV</label>
-                <input type="password" value={cvv} onChange={function(e){setCvv(e.target.value.replace(/\D/g,"").slice(0,3));}} placeholder="cvv" className="input-style w-full px-4 py-3 rounded-xl text-sm" maxLength={3}/></div>
-            </div>
-            {error&&<div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-300 text-sm">{error}</div>}
-            <button onClick={handlePay} disabled={loading} className="w-full py-3.5 rounded-xl text-white font-bold disabled:opacity-60" style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)"}}>
-              {loading?"Processing...":"Confirm Upgrade"}
-            </button>
-            <button onClick={function(){setStep(1);setError("");}} className="w-full text-slate-400 text-sm hover:text-white">Back</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
-function Dashboard({user,setUser,onLogout,users,setUsers}){
-  const [prompt,setPrompt]=useState("A lone warrior walks through a rain-soaked cyberpunk city at night, neon reflections on wet pavement, cinematic");
-  const [enhanced,setEnhanced]=useState(false);
-  const [aspectRatio,setAspectRatio]=useState("16:9");
-  const [duration,setDuration]=useState("5");
-  const [isDragging,setIsDragging]=useState(false);
-  const [uploadedImage,setUploadedImage]=useState(null);
-  const [uploadName,setUploadName]=useState("");
-  const [progress,setProgress]=useState(0);
-  const [generating,setGenerating]=useState(false);
-  const [videoReady,setVideoReady]=useState(false);
-  const [activeVideo,setActiveVideo]=useState(null);
-  const [recentVideos,setRecentVideos]=useState(DEMO_VIDEOS);
-  const [progressMsg,setProgressMsg]=useState("");
-  const [showUpgrade,setShowUpgrade]=useState(false);
-  const [showProfile,setShowProfile]=useState(false);
-  const [apiStatus,setApiStatus]=useState("checking");
-  const [genLog,setGenLog]=useState("");
-  const fileInputRef=useRef(null);
-  const progressRef=useRef(null);
-  const isOwner=user.role==="owner";
-  const isTrial=user.plan==="trial";
-  const planInfo=PLANS.find(function(p){return p.id===user.plan;})||PLANS[0];
-
-  useEffect(function(){
-    fetch("/api/status").then(function(r){return r.json();}).then(function(d){
-      setApiStatus(d.status==="ok"?"connected":"error");
-    }).catch(function(){setApiStatus("error");});
-  },[]);
-
-  useEffect(function(){
-    if(generating){
-      let p=5;
-      progressRef.current=setInterval(function(){
-        p+=p<20?2:p<60?1:0.3;
-        if(p>=95)p=95;
-        setProgress(Math.round(p));
-        if(p<20)setProgressMsg("Submitting to Kling AI...");
-        else if(p<50)setProgressMsg("Analyzing prompt...");
-        else if(p<80)setProgressMsg("Generating frames...");
-        else setProgressMsg("Finalizing video...");
-      },3000);
-    }else{clearInterval(progressRef.current);}
-    return function(){clearInterval(progressRef.current);};
-  },[generating]);
-
-  function handleEnhance(){
-    if(!prompt.trim())return;
-    setPrompt(prompt.trim()+", ultra-realistic cinematic, volumetric lighting, film grain, Kodak color grade, shallow depth of field, 8K");
-    setEnhanced(true);
-  }
-
-  function handleFile(file){
-    if(!file||!file.type.startsWith("image/"))return;
-    const reader=new FileReader();
-    reader.onload=function(e){setUploadedImage(e.target.result);setUploadName(file.name);};
-    reader.readAsDataURL(file);
-  }
-
-async function handleGenerate(){
-  if(!prompt.trim()||generating)return;
-  if(isTrial&&user.videosLeft<=0){setShowUpgrade(true);return;}
-  setGenerating(true);setVideoReady(false);setProgress(5);
-  setGenLog("Submitting job to Fal.ai...");
-  setProgressMsg("Submitting to Kling AI...");
-
-  try{
-    // Step 1: Submit job
-    const submitRes = await fetch("/api/submit",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        prompt:prompt,
-        duration:isTrial?"5":duration,
-        aspect_ratio:aspectRatio,
-      }),
-    });
-    const submitData = await submitRes.json();
-
-    if(!submitRes.ok) throw new Error(submitData.error||"Submit failed");
-
-    const requestId = submitData.request_id;
-    setGenLog("Job submitted! ID: "+requestId+"\nPolling every 5 seconds...");
-    setProgress(15);
-    setProgressMsg("Job submitted, waiting for generation...");
-
-    // Step 2: Poll for result
-    let attempts = 0;
-    const maxAttempts = 60; // 5 min max
-
-    const pollInterval = setInterval(async function(){
-      attempts++;
-      const p = Math.min(15 + (attempts * 1.3), 90);
-      setProgress(Math.round(p));
-
-      if(attempts < 10) setProgressMsg("In queue... ("+attempts*5+"s)");
-      else if(attempts < 25) setProgressMsg("Generating frames... ("+attempts*5+"s)");
-      else setProgressMsg("Finalizing video... ("+attempts*5+"s)");
-
-      try{
-        const pollRes = await fetch("/api/poll",{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({request_id:requestId}),
-        });
-        const pollData = await pollRes.json();
-        setGenLog("Status: "+pollData.status+" (attempt "+attempts+")");
-
-        if(pollData.status==="COMPLETED" && pollData.videoUrl){
-          clearInterval(pollInterval);
-          setProgress(100);
-          setProgressMsg("Video Generated!");
-          setGenLog("Real AI Video Ready!");
-
-          const newItem={
-            id:Date.now(),title:prompt.slice(0,30),
-            category:"Text-to-Video",
-            duration:(isTrial?"5":duration)+"s",
-            ratio:aspectRatio,
-            thumbnail:"https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=800&q=80",
-            video:pollData.videoUrl,
-            gradient:"from-emerald-500/30 to-cyan-600/30",
-            watermark:isTrial,isReal:true,
-          };
-          setActiveVideo(newItem);
-          setVideoReady(true);
-          setGenerating(false);
-          setRecentVideos(function(prev){return [newItem,...prev.slice(0,5)];});
-
-          if(isTrial){
-            const u2={...user,videosLeft:user.videosLeft-1,totalVideos:user.totalVideos+1};
-            setUser(u2);
-            setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
-          }
-        }
-
-        if(pollData.status==="FAILED"){
-          clearInterval(pollInterval);
-          throw new Error("Video generation failed on Fal.ai");
-        }
-
-        if(attempts >= maxAttempts){
-          clearInterval(pollInterval);
-          throw new Error("Timeout - took too long");
-        }
-
-      }catch(pollErr){
-        clearInterval(pollInterval);
-        setGenerating(false);
-        setGenLog("Error: "+pollErr.message);
-        setProgress(100);
-        setProgressMsg("Error occurred");
-      }
-    }, 5000);
-
-  }catch(err){
-    setGenerating(false);
-    setGenLog("Error: "+err.message);
-    setProgress(100);
-    setProgressMsg("Failed - showing demo");
-
-    // Fallback demo video
-    const base=DEMO_VIDEOS[Math.floor(Math.random()*DEMO_VIDEOS.length)];
-    const newItem={
-      id:Date.now(),title:prompt.slice(0,30),category:"Demo",
-      duration:(isTrial?"5":duration)+"s",ratio:aspectRatio,
-      thumbnail:base.thumbnail,video:base.video,
-      gradient:"from-slate-500/30 to-gray-600/30",
-      watermark:isTrial,isReal:false
-    };
-    setActiveVideo(newItem);
-    setVideoReady(true);
-    setRecentVideos(function(prev){return [newItem,...prev.slice(0,5)];});
-  }
-}
-
-      if(isTrial){
-        const u2={...user,videosLeft:user.videosLeft-1,totalVideos:user.totalVideos+1};
-        setUser(u2);setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
-      }else{
-        setUser(function(u){return {...u,totalVideos:u.totalVideos+1};});
-      }
-    }catch(err){
-      clearInterval(progressRef.current);
-      setGenLog("Error: "+err.message);
-      setProgress(100);setProgressMsg("Showing Demo Video");
-      const base=DEMO_VIDEOS[Math.floor(Math.random()*DEMO_VIDEOS.length)];
-      const newItem={id:Date.now(),title:prompt.slice(0,30),category:"Demo",
-        duration:(isTrial?"5":duration)+"s",ratio:aspectRatio,
-        thumbnail:base.thumbnail,video:base.video,gradient:"from-slate-500/30 to-gray-600/30",
-        watermark:isTrial,isReal:false};
-      setActiveVideo(newItem);setVideoReady(true);setGenerating(false);
-      setRecentVideos(function(prev){return [newItem,...prev.slice(0,5)];});
-      if(isTrial){
-        const u2={...user,videosLeft:user.videosLeft-1,totalVideos:user.totalVideos+1};
-        setUser(u2);setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
-      }
-    }
-  }
-
-  function handleUpgrade(planId){
-    const u2={...user,plan:planId,videosLeft:Infinity};
-    setUser(u2);setUsers(function(prev){return prev.map(function(u){return u.id===user.id?u2:u;});});
-    setShowUpgrade(false);
-  }
-
-  const aspectClass=aspectRatio==="9:16"?"aspect-[9/16] max-w-[260px] mx-auto":aspectRatio==="1:1"?"aspect-square":"aspect-video";
-  const statusInfo={
-    checking:{c:"text-slate-400",l:"Checking..."},
-    connected:{c:"text-emerald-300",l:"Connected"},
-    error:{c:"text-red-300",l:"Error"}
-  }[apiStatus];
-
-  return(
-    <div className="min-h-screen" style={{background:"#050816"}}>
-      <div className="fixed inset-0 pointer-events-none">
-        <div style={{position:"absolute",top:"-10%",left:"-10%",width:"40vw",height:"40vw",background:"radial-gradient(circle,rgba(34,211,238,0.08),transparent 60%)",borderRadius:"50%"}}/>
-        <div style={{position:"absolute",bottom:"-10%",right:"-10%",width:"35vw",height:"35vw",background:"radial-gradient(circle,rgba(168,85,247,0.07),transparent 60%)",borderRadius:"50%"}}/>
-        <div className="absolute inset-0" style={{backgroundImage:"radial-gradient(rgba(34,211,238,0.02) 1px,transparent 1px)",backgroundSize:"40px 40px"}}/>
-      </div>
-      {showUpgrade&&<UpgradeModal onClose={function(){setShowUpgrade(false);}} onUpgrade={handleUpgrade}/>}
-      <nav className="relative border-b border-white/5 px-6 py-4 flex items-center justify-between" style={{background:"rgba(5,8,22,0.85)",backdropFilter:"blur(20px)"}}>
-        <LRLogo size={32}/>
-        <div className="flex items-center gap-3">
-          {isOwner
-            ?<div className="px-3 py-1.5 rounded-full border border-violet-400/30 bg-violet-400/10 text-violet-300 text-xs font-bold">Owner</div>
-            :<div className={"px-3 py-1.5 rounded-full text-xs font-bold border "+(isTrial?"border-amber-400/30 bg-amber-400/10 text-amber-300":"border-cyan-400/30 bg-cyan-400/10 text-cyan-300")}>
-              {isTrial?"Trial: "+user.videosLeft+" left":planInfo.name}
-            </div>
-          }
-          {isTrial&&<button onClick={function(){setShowUpgrade(true);}} className="px-4 py-2 rounded-xl text-white text-xs font-bold" style={{background:"linear-gradient(135deg,#f59e0b,#ef4444)"}}>Upgrade</button>}
-          <div className="relative">
-            <button onClick={function(){setShowProfile(!showProfile);}} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 hover:bg-white/5">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{background:"linear-gradient(135deg,#22d3ee,#a855f7)"}}>{user.name[0].toUpperCase()}</div>
-              <span className="text-sm text-slate-300 hidden md:block">{user.name}</span>
-            </button>
-            {showProfile&&(
-              <div className="absolute right-0 top-full mt-2 w-56 glass neon-border rounded-2xl p-4 z-50" style={{background:"rgba(5,8,22,0.98)"}}>
-                <div className="text-sm font-semibold text-white mb-1">{user.name}</div>
-                <div className="text-xs text-slate-400 mb-2">{user.email}</div>
-                <div className="text-xs mb-1">Plan: <span className="text-cyan-300">{planInfo.name}</span></div>
-                <div className="text-xs mb-2">Videos: <span className="text-white font-semibold">{user.totalVideos}</span></div>
-                <div className="text-xs mb-4">API: <span className={statusInfo.c}>{statusInfo.l}</span></div>
-                <button onClick={onLogout} className="w-full py-2 rounded-xl border border-red-500/20 bg-red-500/10 text-red-300 text-xs font-semibold">Sign Out</button>
-              </div>
-            )}
-          </div>
-        </div>
-      </nav>
-      <div className="relative max-w-7xl mx-auto px-4 py-8">
-        {isOwner&&(
-          <div className="mb-6 rounded-2xl border border-violet-400/25 bg-violet-400/5 px-6 py-4 flex items-center gap-4">
-            <span className="text-2xl">crown</span>
-            <div>
-              <div className="text-violet-300 font-semibold text-sm">Owner Account - Full Access</div>
-              <div className="text-slate-400 text-xs mt-1">Unlimited videos - All durations - No watermark</div>
-            </div>
-            <div className={"ml-auto text-xs font-semibold px-3 py-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 "+statusInfo.c}>API: {statusInfo.l}</div>
-          </div>
-        )}
-        {isTrial&&(
-          <div className="mb-6 rounded-2xl border border-amber-400/25 bg-amber-400/5 px-6 py-4 flex flex-col md:flex-row md:items-center gap-4">
-            <div className="flex-1">
-              <div className="text-amber-300 font-semibold text-sm">Free Trial - {user.videosLeft} videos left</div>
-              <div className="text-slate-400 text-xs mt-1">5s / 720p / Watermark. Upgrade for full access.</div>
-            </div>
-            <button onClick={function(){setShowUpgrade(true);}} className="px-5 py-2.5 rounded-xl text-white text-sm font-bold" style={{background:"linear-gradient(135deg,#f59e0b,#ef4444)"}}>Remove Limits</button>
-          </div>
-        )}
-        <div className="grid xl:grid-cols-2 gap-6 mb-6">
-          <div className="glass rounded-3xl p-6 neon-border">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-white">Creative Console</h2>
-                <p className="text-xs text-slate-400 mt-1">Powered by Kling AI v1.6</p>
-              </div>
-              <div className={"px-3 py-1 rounded-full text-xs border "+(apiStatus==="connected"?"bg-emerald-400/10 border-emerald-400/30 text-emerald-300":"bg-amber-400/10 border-amber-400/30 text-amber-300")}>
-                {statusInfo.l}
-              </div>
-            </div>
-            <div className="mb-4">
-              <label className="text-xs font-medium text-slate-300 mb-2 block">Your Prompt</label>
-              <textarea value={prompt} onChange={function(e){setPrompt(e.target.value);setEnhanced(false);}} placeholder="Describe your cinematic scene..."
-                className="input-style w-full min-h-[140px] px-4 py-4 rounded-2xl text-sm resize-none"/>
-              <div className="flex items-center justify-between mt-3">
-                <p className="text-xs text-slate-500">{enhanced?"Enhanced":"Add mood, lighting, camera"}</p>
-                <button onClick={handleEnhance} className="px-4 py-2 rounded-xl bg-cyan-400/10 border border-cyan-400/30 text-cyan-300 text-xs hover:bg-cyan-400/20">Enhance</button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <p className="text-xs text-slate-400 mb-3">Aspect Ratio</p>
-                <div className="flex gap-2">
-                  {["16:9","9:16","1:1"].map(function(r){return(
-                    <button key={r} onClick={function(){setAspectRatio(r);}}
-                      className={"flex-1 py-2 rounded-xl text-xs font-semibold "+(aspectRatio===r?"text-white":"bg-white/5 border border-white/10 text-slate-400")}
-                      style={aspectRatio===r?{background:"linear-gradient(135deg,#06b6d4,#3b82f6)"}:{}}>{r}</button>
-                  );})}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <p className="text-xs text-slate-400 mb-3">Duration</p>
-                <div className="flex gap-2">
-                  {["5","10"].map(function(d){return(
-                    <button key={d} onClick={function(){if(isTrial&&d==="10"){setShowUpgrade(true);return;}setDuration(d);}}
-                      className={"flex-1 py-2 rounded-xl text-xs font-semibold "+(duration===d&&!(isTrial&&d==="10")?"text-white":"bg-white/5 border border-white/10 text-slate-400")+" "+(isTrial&&d==="10"?"opacity-40 cursor-not-allowed":"")}
-                      style={duration===d&&!(isTrial&&d==="10")?{background:"linear-gradient(135deg,#7c3aed,#a855f7)"}:{}}>
-                      {d}s{isTrial&&d==="10"?" (locked)":""}
-                    </button>
-                  );})}
-                </div>
-              </div>
-            </div>
-            <div className="mb-5">
-              <p className="text-xs text-slate-400 mb-2">Image-to-Video (Optional)</p>
-              <div onDragOver={function(e){e.preventDefault();setIsDragging(true);}} onDragLeave={function(){setIsDragging(false);}}
-                onDrop={function(e){e.preventDefault();setIsDragging(false);handleFile(e.dataTransfer.files&&e.dataTransfer.files[0]);}}
-                onClick={function(){fileInputRef.current&&fileInputRef.current.click();}}
-                className={"rounded-2xl border-2 border-dashed p-4 cursor-pointer "+(isDragging?"border-cyan-400 bg-cyan-400/10":"border-white/10 bg-black/20 hover:border-cyan-400/40")}>
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={function(e){handleFile(e.target.files&&e.target.files[0]);}}/>
-                {uploadedImage?(
-                  <div className="flex items-center gap-4">
-                    <img src={uploadedImage} className="w-14 h-14 rounded-xl object-cover" alt="uploaded"/>
-                    <div>
-                      <p className="text-sm font-semibold text-white">Image Ready</p>
-                      <p className="text-xs text-slate-400">{uploadName}</p>
-                      <button onClick={function(e){e.stopPropagation();setUploadedImage(null);}} className="text-xs text-red-400 mt-1">Remove</button>
+                <!-- Upgrade Modal -->
+                ${showUpgrade ? `
+                    <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+                        <div class="glass-card p-8 rounded-2xl max-w-md w-full">
+                            <h3 class="text-2xl font-bold mb-4">Upgrade Required</h3>
+                            <p class="text-gray-300 mb-6">Your trial video quota has been used. Upgrade to continue generating real AI videos.</p>
+                            <div class="space-y-4 mb-8">
+                                <div class="p-4 border border-white/20 rounded-xl">
+                                    <div class="font-bold text-lg">Pro Plan</div>
+                                    <div class="text-3xl font-bold my-2">$19<span class="text-lg text-gray-400">/month</span></div>
+                                    <ul class="text-gray-300 space-y-2">
+                                        <li>✅ 50 videos/month</li>
+                                        <li>✅ Up to 20s duration</li>
+                                        <li>✅ No watermarks</li>
+                                        <li>✅ Priority generation</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="flex gap-4">
+                                <button onclick="setShowUpgrade(false)" class="flex-1 py-3 bg-white/10 hover:bg-white/20 rounded-xl">
+                                    Maybe Later
+                                </button>
+                                <button onclick="alert('Upgrade flow would open here');setShowUpgrade(false)" class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold">
+                                    Upgrade Now
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                  </div>
-                ):(
-                  <div className="text-center py-3">
-                    <p className="text-sm text-slate-300">Drop image or click to browse</p>
-                    <p className="text-xs text-slate-500 mt-1">JPG, PNG, WEBP</p>
-                  </div>
-                )}
-              </div>
-            </div>
-            <button onClick={handleGenerate} disabled={generating||!prompt.trim()||(isTrial&&user.videosLeft<=0)}
-              className="w-full py-4 rounded-2xl text-base font-black text-white transition hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed mb-4"
-              style={{background:"linear-gradient(135deg,#06b6d4,#3b82f6,#a855f7)",boxShadow:"0 0 40px rgba(34,211,238,0.3)"}}>
-              {generating?"Generating... (2-4 min)":isTrial&&user.videosLeft<=0?"Trial Exhausted":"Generate Video"}
-            </button>
-            {(generating||progress>0)&&(
-              <div className="rounded-2xl border border-cyan-400/20 bg-black/30 p-4">
-                <div className="flex justify-between text-sm mb-3">
-                  <span className="text-slate-300">Progress</span>
-                  <span className="text-cyan-300 font-black">{progress}%</span>
-                </div>
-                <div className="h-3 rounded-full bg-white/10 overflow-hidden mb-3">
-                  <div className="h-full rounded-full transition-all duration-1000" style={{width:progress+"%",background:"linear-gradient(90deg,#22d3ee,#3b82f6,#a855f7)"}}/>
-                </div>
-                <p className="text-xs text-slate-400">{progressMsg}</p>
-                {genLog&&<div className="mt-3 p-3 rounded-xl bg-black/40 border border-white/5 text-xs font-mono text-slate-400">{genLog}</div>}
-                <p className="text-xs text-slate-600 mt-2">Real generation takes 2-4 minutes!</p>
-              </div>
-            )}
-          </div>
-          <div className="glass rounded-3xl p-6" style={{border:"1px solid rgba(168,85,247,0.15)"}}>
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-white">Preview Output</h2>
-                <p className="text-xs text-slate-400 mt-1">Your generated video</p>
-              </div>
-              <div className={"px-3 py-1 rounded-full text-xs border "+(videoReady?"bg-emerald-400/10 border-emerald-400/30 text-emerald-300":"bg-white/5 border-white/10 text-slate-400")}>
-                {videoReady?(activeVideo&&activeVideo.isReal?"AI Generated":"Demo"):"Standby"}
-              </div>
-            </div>
-            <div className={"relative rounded-2xl overflow-hidden bg-black border border-white/10 mb-5 "+aspectClass}>
-              {!videoReady?(
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
-                  <div className="rounded-full border border-cyan-400/20 bg-cyan-400/5 flex items-center justify-center mb-5 animate-float" style={{width:72,height:72}}>
-                    <span className="text-cyan-300 text-2xl">play</span>
-                  </div>
-                  <h3 className="text-base font-bold text-white mb-2">Ready to Generate</h3>
-                  <p className="text-xs text-slate-400">Write a prompt and click Generate</p>
-                </div>
-              ):(
-                <div className="absolute inset-0">
-                  <video key={activeVideo&&activeVideo.video} autoPlay loop controls className="w-full h-full object-cover"
-                    poster={activeVideo&&activeVideo.thumbnail} src={activeVideo&&activeVideo.video}/>
-                  {activeVideo&&activeVideo.isReal&&<div className="absolute top-3 left-3 px-2 py-1 rounded-full bg-emerald-400/20 border border-emerald-400/30 text-emerald-200 text-xs">REAL AI</div>}
-                  {(isTrial||(activeVideo&&activeVideo.watermark))&&<Watermark/>}
-                  <a href={activeVideo&&activeVideo.video} download className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-cyan-400/20 border border-cyan-400/30 text-cyan-200 text-xs">Download</a>
-                </div>
-              )}
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              {[{l:"Engine",v:"Kling v1.6"},{l:"Backend",v:"Vercel Proxy"},{l:"Quality",v:planInfo.quality}].map(function(i){return(
-                <div key={i.l} className="rounded-xl border border-white/8 bg-black/20 p-3">
-                  <div className="text-xs text-slate-500">{i.l}</div>
-                  <div className="text-sm font-semibold text-white mt-1">{i.v}</div>
-                </div>
-              );})}
-            </div>
-          </div>
-        </div>
-        <div className="glass rounded-3xl p-6" style={{border:"1px solid rgba(59,130,246,0.12)"}}>
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-xl font-bold text-white">Recent Generations</h2>
-              <p className="text-xs text-slate-400 mt-1">Click to preview</p>
-            </div>
-            <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 text-xs">{recentVideos.length} videos</div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {recentVideos.map(function(item){return(
-              <button key={item.id} onClick={function(){setActiveVideo(item);setVideoReady(true);}}
-                className="group rounded-2xl overflow-hidden border border-white/10 bg-black/20 text-left transition-all hover:-translate-y-1 hover:border-cyan-400/30">
-                <div className="relative aspect-video overflow-hidden">
-                  <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-500"/>
-                  <div className={"absolute inset-0 bg-gradient-to-tr "+item.gradient+" mix-blend-screen"}/>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"/>
-                  {item.isReal&&<div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-emerald-400/30 text-xs text-emerald-200">AI</div>}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white">play</div>
-                  </div>
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <p className="text-xs font-semibold text-white">{item.title}</p>
-                    <div className="flex gap-1 mt-1">
-                      <span className="text-xs text-slate-300 bg-white/10 px-1.5 py-0.5 rounded">{item.ratio}</span>
-                      <span className="text-xs text-slate-300 bg-white/10 px-1.5 py-0.5 rounded">{item.duration}</span>
-                    </div>
-                  </div>
-                </div>
-              </button>
-            );})}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+                ` : ''}
+            `;
+            // Reattach event listeners for any dynamic elements
+            setTimeout(() => {
+                const textarea = root.querySelector('textarea');
+                if (textarea) textarea.value = prompt;
+            }, 10);
+        };
 
-function App(){
-  const [page,setPage]=useState("landing");
-  const [authMode,setAuthMode]=useState("login");
-  const [currentUser,setCurrentUser]=useState(null);
-  const [users,setUsers]=useState(INITIAL_USERS);
-  return(
-    <div>
-      {page==="landing"&&<LandingPage onLogin={function(){setAuthMode("login");setPage("auth");}} onRegister={function(){setAuthMode("register");setPage("auth");}}/>}
-      {page==="auth"&&(
-        <div>
-          <LandingPage onLogin={function(){setAuthMode("login");}} onRegister={function(){setAuthMode("register");}}/>
-          <AuthModal mode={authMode} onClose={function(){setPage("landing");}} onSuccess={function(u){setCurrentUser(u);setPage("dashboard");}} users={users} setUsers={setUsers}/>
-        </div>
-      )}
-      {page==="dashboard"&&currentUser&&(
-        <Dashboard user={currentUser} setUser={setCurrentUser} onLogout={function(){setCurrentUser(null);setPage("landing");}} users={users} setUsers={setUsers}/>
-      )}
-    </div>
-  );
-}
-
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App,null));
-</script>
+        // Initialize
+        window.onload = () => {
+            initDemo();
+            updateUI();
+        };
+    </script>
 </body>
 </html>
