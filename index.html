@@ -1,134 +1,589 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>LR AI - Video Generation</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<style>
-body{background:#050816;color:white;margin:0;font-family:sans-serif;}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LR AI - Video Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #0a0a0f;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* ── NAV ── */
+    nav {
+      background: rgba(15,15,25,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #1e293b;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      font-size: 22px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .nav-badge {
+      background: #1e293b;
+      color: #94a3b8;
+      font-size: 12px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid #334155;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      text-align: center;
+      padding: 70px 20px 40px;
+    }
+    .hero-tag {
+      display: inline-block;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 16px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .hero h1 {
+      font-size: clamp(32px, 6vw, 58px);
+      font-weight: 900;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+    .hero h1 span {
+      background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      color: #94a3b8;
+      font-size: 18px;
+      max-width: 500px;
+      margin: 0 auto 40px;
+      line-height: 1.6;
+    }
+
+    /* ── MAIN CARD ── */
+    .main-card {
+      max-width: 780px;
+      margin: 0 auto 60px;
+      padding: 0 20px;
+    }
+    .card {
+      background: #111827;
+      border: 1px solid #1e293b;
+      border-radius: 20px;
+      padding: 32px;
+    }
+
+    /* ── PROMPT ── */
+    .prompt-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+    .prompt-wrapper {
+      position: relative;
+    }
+    textarea {
+      width: 100%;
+      min-height: 130px;
+      background: #0f172a;
+      border: 1.5px solid #1e293b;
+      border-radius: 14px;
+      color: #e2e8f0;
+      font-size: 16px;
+      padding: 16px;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+      font-family: inherit;
+      line-height: 1.6;
+    }
+    textarea:focus { border-color: #6366f1; }
+    textarea::placeholder { color: #475569; }
+
+    /* ── SETTINGS ── */
+    .settings-row {
+      display: flex;
+      gap: 16px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .setting-group {
+      flex: 1;
+      min-width: 140px;
+    }
+    .setting-group label {
+      display: block;
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 600;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    select {
+      width: 100%;
+      background: #0f172a;
+      border: 1.5px solid #1e293b;
+      border-radius: 10px;
+      color: #e2e8f0;
+      font-size: 14px;
+      padding: 10px 14px;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      font-family: inherit;
+    }
+    select:focus { border-color: #6366f1; }
+
+    /* ── BUTTON ── */
+    .btn-generate {
+      width: 100%;
+      margin-top: 24px;
+      padding: 16px;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      border: none;
+      border-radius: 14px;
+      color: white;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.5px;
+    }
+    .btn-generate:hover { opacity: 0.92; transform: translateY(-1px); }
+    .btn-generate:active { transform: translateY(0); }
+    .btn-generate:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* ── STATUS BOX ── */
+    .status-box {
+      display: none;
+      margin-top: 24px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      padding: 20px 24px;
+    }
+    .status-box.show { display: block; }
+    .status-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2.5px solid #1e293b;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #a78bfa;
+    }
+    .status-text {
+      font-size: 13px;
+      color: #64748b;
+    }
+    .progress-bar-wrap {
+      background: #1e293b;
+      border-radius: 6px;
+      height: 6px;
+      margin-top: 14px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #6366f1, #a855f7);
+      border-radius: 6px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+
+    /* ── RESULT ── */
+    .result-box {
+      display: none;
+      margin-top: 24px;
+    }
+    .result-box.show { display: block; }
+    .result-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #4ade80;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    video {
+      width: 100%;
+      border-radius: 14px;
+      background: #000;
+      display: block;
+    }
+    .result-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .btn-download {
+      flex: 1;
+      padding: 13px;
+      background: linear-gradient(135deg, #059669, #10b981);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      text-align: center;
+      transition: opacity 0.2s;
+    }
+    .btn-download:hover { opacity: 0.88; }
+    .btn-new {
+      flex: 1;
+      padding: 13px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      color: #94a3b8;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-new:hover { background: #273548; }
+
+    /* ── ERROR ── */
+    .error-box {
+      display: none;
+      margin-top: 20px;
+      background: #1a0a0a;
+      border: 1px solid #7f1d1d;
+      border-radius: 12px;
+      padding: 16px 20px;
+      color: #fca5a5;
+      font-size: 14px;
+    }
+    .error-box.show { display: block; }
+
+    /* ── FEATURES ── */
+    .features {
+      max-width: 780px;
+      margin: 0 auto 60px;
+      padding: 0 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .feature-card {
+      background: #111827;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      padding: 20px;
+      text-align: center;
+    }
+    .feature-icon { font-size: 28px; margin-bottom: 10px; }
+    .feature-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .feature-desc { font-size: 12px; color: #64748b; line-height: 1.5; }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      color: #334155;
+      font-size: 13px;
+      padding: 30px 20px;
+      border-top: 1px solid #1e293b;
+    }
+
+    @media (max-width: 500px) {
+      .card { padding: 20px; }
+      .result-actions { flex-direction: column; }
+    }
+  </style>
 </head>
 <body>
-<div id="root"></div>
-<script type="text/babel">
 
-// INITIAL_USERS array ko yahan paste karna hai, App function se pehle
-const INITIAL_USERS = [
-  { id: 1, email: "user1@example.com", password: "password1", credits: 50 },
-  { id: 2, email: "user2@example.com", password: "password2", credits: 100 },
-];
+  <!-- NAV -->
+  <nav>
+    <div class="logo">LR AI</div>
+    <div class="nav-badge">Powered by Kling v1.6</div>
+  </nav>
 
-// Ye App function ab tumhare previous App function ko replace karega
-function App() {
-  const [page, setPage] = useState("landing"); // "landing", "auth", "dashboard"
-  const [authMode, setAuthMode] = useState("login"); // "login", "register"
-  const [currentUser, setCurrentUser] = useState(null); // Currently logged-in user object
-  const [users, setUsers] = useState(INITIAL_USERS); // All registered users
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-tag">✨ Text to Video AI</div>
+    <h1>Generate <span>Stunning Videos</span><br/>with AI</h1>
+    <p>Type your idea, choose settings, and watch AI bring it to life in seconds.</p>
+  </section>
 
-  // Temporary/Placeholder Components - Hum inko baad mein replace karenge
-  function LandingPage(props) {
-    return (
-      <div style={{ padding: "20px", textAlign: "center" }}>
-        <h1 style={{ fontSize: "2.5rem", color: "#67e8f9" }}>Welcome to LR AI</h1>
-        <p style={{ marginTop: "10px", color: "#a0aec0" }}>Generate amazing videos with AI!</p>
-        <div style={{ marginTop: "30px", display: "flex", justifyContent: "center", gap: "15px" }}>
-          <button
-            onClick={props.onLogin}
-            style={{ padding: "10px 20px", background: "#3b82f6", color: "white", borderRadius: "5px", border: "none", cursor: "pointer" }}
-          >
-            Login
-          </button>
-          <button
-            onClick={props.onRegister}
-            style={{ padding: "10px 20px", background: "#10b981", color: "white", borderRadius: "5px", border: "none", cursor: "pointer" }}
-          >
-            Register
-          </button>
+  <!-- MAIN CARD -->
+  <div class="main-card">
+    <div class="card">
+
+      <!-- PROMPT -->
+      <div class="prompt-label">Your Prompt</div>
+      <div class="prompt-wrapper">
+        <textarea
+          id="promptInput"
+          placeholder="A cinematic drone shot of a futuristic city at sunset, golden hour lighting, ultra realistic..."
+        ></textarea>
+      </div>
+
+      <!-- SETTINGS -->
+      <div class="settings-row">
+        <div class="setting-group">
+          <label>Duration</label>
+          <select id="duration">
+            <option value="5">5 seconds</option>
+            <option value="10">10 seconds</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <label>Aspect Ratio</label>
+          <select id="aspect_ratio">
+            <option value="16:9">16:9 (Landscape)</option>
+            <option value="9:16">9:16 (Portrait)</option>
+            <option value="1:1">1:1 (Square)</option>
+          </select>
         </div>
       </div>
-    );
-  }
 
-  function AuthModal(props) {
-    return (
-      <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ background: "#1f2937", padding: "30px", borderRadius: "10px", color: "white", width: "300px", textAlign: "center" }}>
-          <h2 style={{ fontSize: "1.5rem", marginBottom: "20px" }}>{props.mode === "login" ? "Login" : "Register"}</h2>
-          <p>This is a placeholder for AuthModal.</p>
-          <p style={{marginTop: "10px"}}>Use: user1@example.com / password1</p>
-          <button onClick={function(){props.onSuccess({ id: 1, email: "user1@example.com", credits: 50 });}} style={{marginTop:"20px", padding:"10px 20px", background:"#60a5fa", color:"white", borderRadius:"5px", border:"none", cursor:"pointer"}}>Simulate Login/Register</button>
-          <button onClick={props.onClose} style={{marginTop:"10px", marginLeft:"10px", padding:"10px 20px", background:"#ef4444", color:"white", borderRadius:"5px", border:"none", cursor:"pointer"}}>Close</button>
+      <!-- GENERATE BUTTON -->
+      <button class="btn-generate" id="generateBtn" onclick="generateVideo()">
+        Generate Video
+      </button>
+
+      <!-- STATUS BOX -->
+      <div class="status-box" id="statusBox">
+        <div class="status-header">
+          <div class="spinner" id="spinner"></div>
+          <div class="status-title" id="statusTitle">Submitting job...</div>
+        </div>
+        <div class="status-text" id="statusText">Please wait, this takes 1–3 minutes</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="progressBar"></div>
         </div>
       </div>
-    );
-  }
 
-  function Dashboard(props) {
-    return (
-      <div style={{ padding: "20px", textAlign: "center" }}>
-        <h1 style={{ fontSize: "2.5rem", color: "#67e8f9" }}>Dashboard</h1>
-        <p style={{ marginTop: "10px", color: "#a0aec0" }}>Welcome, {props.user ? props.user.email : "Guest"}!</p>
-        <p style={{ marginTop: "5px", color: "#a0aec0" }}>Credits: {props.user ? props.user.credits : 0}</p>
-        <button
-          onClick={props.onLogout}
-          style={{ marginTop: "20px", padding: "10px 20px", background: "#ef4444", color: "white", borderRadius: "5px", border: "none", cursor: "pointer" }}
-        >
-          Logout
-        </button>
-      </div>
-    );
-  }
+      <!-- ERROR BOX -->
+      <div class="error-box" id="errorBox"></div>
 
-  return (
-    <div>
-      {page === "landing" && (
-        <LandingPage
-          onLogin={function() { setAuthMode("login"); setPage("auth"); }}
-          onRegister={function() { setAuthMode("register"); setPage("auth"); }}
-        />
-      )}
-
-      {page === "auth" && (
-        <div>
-          <LandingPage
-            onLogin={function() { setAuthMode("login"); }}
-            onRegister={function() { setAuthMode("register"); }}
-          />
-          <AuthModal
-            mode={authMode}
-            onClose={function() { setPage("landing"); }}
-            onSuccess={function(user) {
-              setCurrentUser(user);
-              setPage("dashboard");
-            }}
-            users={users}
-            setUsers={setUsers}
-          />
+      <!-- RESULT -->
+      <div class="result-box" id="resultBox">
+        <div class="result-label">✅ Video Ready!</div>
+        <video id="videoPlayer" controls autoplay loop></video>
+        <div class="result-actions">
+          <a id="downloadBtn" class="btn-download" download="lr-ai-video.mp4">
+            ⬇ Download Video
+          </a>
+          <button class="btn-new" onclick="resetForm()">+ New Video</button>
         </div>
-      )}
+      </div>
 
-      {page === "dashboard" && currentUser && (
-        <Dashboard
-          user={currentUser}
-          setUser={setCurrentUser}
-          onLogout={function() {
-            setCurrentUser(null);
-            setPage("landing");
-          }}
-          users={users}
-          setUsers={setUsers}
-        />
-      )}
     </div>
-  );
-}
+  </div>
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  <!-- FEATURES -->
+  <div class="features">
+    <div class="feature-card">
+      <div class="feature-icon">🎬</div>
+      <div class="feature-title">Kling v1.6 Model</div>
+      <div class="feature-desc">State-of-the-art video generation model from Fal AI</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⚡</div>
+      <div class="feature-title">Fast Generation</div>
+      <div class="feature-desc">Videos ready in 1–3 minutes with real-time status</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📐</div>
+      <div class="feature-title">Multiple Ratios</div>
+      <div class="feature-desc">Landscape, portrait, or square — your choice</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💾</div>
+      <div class="feature-title">Download Free</div>
+      <div class="feature-desc">Download your generated video in MP4 format</div>
+    </div>
+  </div>
 
+  <!-- FOOTER -->
+  <footer>
+    © 2026 LR AI · Built with Fal AI · Kling v1.6
+  </footer>
+
+<script>
+  let pollInterval = null;
+  let pollCount = 0;
+  const MAX_POLLS = 72; // 72 × 5s = 6 min max
+
+  function setProgress(pct) {
+    document.getElementById('progressBar').style.width = pct + '%';
+  }
+
+  function showStatus(title, text) {
+    const box = document.getElementById('statusBox');
+    box.classList.add('show');
+    document.getElementById('statusTitle').textContent = title;
+    document.getElementById('statusText').textContent = text;
+  }
+
+  function hideStatus() {
+    document.getElementById('statusBox').classList.remove('show');
+    if (pollInterval) clearInterval(pollInterval);
+  }
+
+  function showError(msg) {
+    hideStatus();
+    const box = document.getElementById('errorBox');
+    box.textContent = '❌ Error: ' + msg;
+    box.classList.add('show');
+    document.getElementById('generateBtn').disabled = false;
+    document.getElementById('generateBtn').textContent = 'Generate Video';
+  }
+
+  function showVideo(url) {
+    hideStatus();
+    const resultBox = document.getElementById('resultBox');
+    const videoPlayer = document.getElementById('videoPlayer');
+    const downloadBtn = document.getElementById('downloadBtn');
+    videoPlayer.src = url;
+    downloadBtn.href = url;
+    resultBox.classList.add('show');
+    document.getElementById('generateBtn').disabled = false;
+    document.getElementById('generateBtn').textContent = 'Generate Video';
+  }
+
+  function resetForm() {
+    document.getElementById('resultBox').classList.remove('show');
+    document.getElementById('errorBox').classList.remove('show');
+    document.getElementById('statusBox').classList.remove('show');
+    document.getElementById('promptInput').value = '';
+    document.getElementById('generateBtn').disabled = false;
+    document.getElementById('generateBtn').textContent = 'Generate Video';
+    setProgress(0);
+    pollCount = 0;
+    if (pollInterval) clearInterval(pollInterval);
+  }
+
+  async function generateVideo() {
+    const prompt = document.getElementById('promptInput').value.trim();
+    const duration = document.getElementById('duration').value;
+    const aspect_ratio = document.getElementById('aspect_ratio').value;
+
+    if (!prompt) {
+      alert('Please enter a prompt first!');
+      return;
+    }
+
+    // Reset UI
+    document.getElementById('errorBox').classList.remove('show');
+    document.getElementById('resultBox').classList.remove('show');
+    document.getElementById('generateBtn').disabled = true;
+    document.getElementById('generateBtn').textContent = 'Generating...';
+    pollCount = 0;
+    setProgress(5);
+    showStatus('Submitting job...', 'Connecting to Fal AI...');
+
+    try {
+      // STEP 1: Submit job
+      const submitRes = await fetch('/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, duration, aspect_ratio })
+      });
+      const submitData = await submitRes.json();
+
+      if (!submitRes.ok || !submitData.request_id) {
+        throw new Error(submitData.error || 'Failed to submit job');
+      }
+
+      const requestId = submitData.request_id;
+      setProgress(15);
+      showStatus('Job submitted!', 'AI is generating your video...');
+
+      // STEP 2: Poll status every 5 seconds
+      pollInterval = setInterval(async () => {
+        pollCount++;
+
+        if (pollCount > MAX_POLLS) {
+          clearInterval(pollInterval);
+          showError('Timeout — took too long. Please try again.');
+          return;
+        }
+
+        // Progress animation
+        const pct = Math.min(15 + (pollCount / MAX_POLLS) * 75, 90);
+        setProgress(pct);
+
+        const statusMessages = [
+          'AI is working on your video...',
+          'Generating frames...',
+          'Rendering motion...',
+          'Applying visual effects...',
+          'Almost there...',
+          'Finalizing video...'
+        ];
+        const msgIndex = Math.floor(pollCount / 4) % statusMessages.length;
+        showStatus('Processing...', statusMessages[msgIndex] + ' (' + (pollCount * 5) + 's elapsed)');
+
+        try {
+          const pollRes = await fetch('/api/poll', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ request_id: requestId })
+          });
+          const pollData = await pollRes.json();
+
+          if (pollData.status === 'COMPLETED' && pollData.videoUrl) {
+            clearInterval(pollInterval);
+            setProgress(100);
+            showVideo(pollData.videoUrl);
+          } else if (pollData.status === 'FAILED') {
+            clearInterval(pollInterval);
+            showError(pollData.error || 'Video generation failed on Fal AI');
+          }
+          // else still IN_QUEUE or IN_PROGRESS — keep polling
+
+        } catch (pollErr) {
+          console.error('Poll error:', pollErr);
+          // Don't stop polling on single fetch error
+        }
+
+      }, 5000); // poll every 5 seconds
+
+    } catch (err) {
+      showError(err.message || 'Something went wrong');
+    }
+  }
 </script>
+
 </body>
 </html>
