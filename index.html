@@ -1009,27 +1009,68 @@ function Dashboard({user,setUser,onLogout,users,setUsers}){
 </div>
 
 function App(){
-  const [page,setPage]=useState("landing");
-  const [authMode,setAuthMode]=useState("login");
-  const [currentUser,setCurrentUser]=useState(null);
-  const [users,setUsers]=useState(INITIAL_USERS);
-  return(
+  const [page, setPage] = useState("landing");
+  const [authMode, setAuthMode] = useState("login");
+  const [currentUser, setCurrentUser] = useState(null);
+  const [users, setUsers] = useState(INITIAL_USERS);
+
+  return (
     <div>
-      {page==="landing"&&<LandingPage onLogin={function(){setAuthMode("login");setPage("auth");}} onRegister={function(){setAuthMode("register");setPage("auth");}}/>}
-      {page==="auth"&&(
+      {page === "landing" && (
+        <LandingPage
+          onLogin={function () {
+            setAuthMode("login");
+            setPage("auth");
+          }}
+          onRegister={function () {
+            setAuthMode("register");
+            setPage("auth");
+          }}
+        />
+      )}
+
+      {page === "auth" && (
         <div>
-          <LandingPage onLogin={function(){setAuthMode("login");}} onRegister={function(){setAuthMode("register");}}/>
-          <AuthModal mode={authMode} onClose={function(){setPage("landing");}} onSuccess={function(u){setCurrentUser(u);setPage("dashboard");}} users={users} setUsers={setUsers}/>
+          <LandingPage
+            onLogin={function () {
+              setAuthMode("login");
+            }}
+            onRegister={function () {
+              setAuthMode("register");
+            }}
+          />
+          <AuthModal
+            mode={authMode}
+            onClose={function () {
+              setPage("landing");
+            }}
+            onSuccess={function (u) {
+              setCurrentUser(u);
+              setPage("dashboard");
+            }}
+            users={users}
+            setUsers={setUsers}
+          />
         </div>
       )}
-      {page==="dashboard"&&currentUser&&(
-        <Dashboard user={currentUser} setUser={setCurrentUser} onLogout={function(){setCurrentUser(null);setPage("landing");}} users={users} setUsers={setUsers}/>
+
+      {page === "dashboard" && currentUser && (
+        <Dashboard
+          user={currentUser}
+          setUser={setCurrentUser}
+          onLogout={function () {
+            setCurrentUser(null);
+            setPage("landing");
+          }}
+          users={users}
+          setUsers={setUsers}
+        />
       )}
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
 </body>
 </html>
