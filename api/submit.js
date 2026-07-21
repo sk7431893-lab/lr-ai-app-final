@@ -1,4 +1,5 @@
 export default async function handler(req, res) {
+  // CORS Headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -30,7 +31,7 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           prompt: prompt,
-          duration: Number(duration) || 5,
+          duration: String(duration) === "10" ? "10" : "5", // String format expected by Fal AI
           aspect_ratio: aspect_ratio || "16:9",
         }),
       }
