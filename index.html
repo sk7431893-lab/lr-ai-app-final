@@ -16,26 +16,112 @@ body{background:#050816;color:white;margin:0;font-family:sans-serif;}
 <div id="root"></div>
 <script type="text/babel">
 
-const { useState } = React;
+// INITIAL_USERS array ko yahan paste karna hai, App function se pehle
+const INITIAL_USERS = [
+  { id: 1, email: "user1@example.com", password: "password1", credits: 50 },
+  { id: 2, email: "user2@example.com", password: "password2", credits: 100 },
+];
 
+// Ye App function ab tumhare previous App function ko replace karega
 function App() {
-  const [page, setPage] = useState("landing");
+  const [page, setPage] = useState("landing"); // "landing", "auth", "dashboard"
+  const [authMode, setAuthMode] = useState("login"); // "login", "register"
+  const [currentUser, setCurrentUser] = useState(null); // Currently logged-in user object
+  const [users, setUsers] = useState(INITIAL_USERS); // All registered users
+
+  // Temporary/Placeholder Components - Hum inko baad mein replace karenge
+  function LandingPage(props) {
+    return (
+      <div style={{ padding: "20px", textAlign: "center" }}>
+        <h1 style={{ fontSize: "2.5rem", color: "#67e8f9" }}>Welcome to LR AI</h1>
+        <p style={{ marginTop: "10px", color: "#a0aec0" }}>Generate amazing videos with AI!</p>
+        <div style={{ marginTop: "30px", display: "flex", justifyContent: "center", gap: "15px" }}>
+          <button
+            onClick={props.onLogin}
+            style={{ padding: "10px 20px", background: "#3b82f6", color: "white", borderRadius: "5px", border: "none", cursor: "pointer" }}
+          >
+            Login
+          </button>
+          <button
+            onClick={props.onRegister}
+            style={{ padding: "10px 20px", background: "#10b981", color: "white", borderRadius: "5px", border: "none", cursor: "pointer" }}
+          >
+            Register
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function AuthModal(props) {
+    return (
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ background: "#1f2937", padding: "30px", borderRadius: "10px", color: "white", width: "300px", textAlign: "center" }}>
+          <h2 style={{ fontSize: "1.5rem", marginBottom: "20px" }}>{props.mode === "login" ? "Login" : "Register"}</h2>
+          <p>This is a placeholder for AuthModal.</p>
+          <p style={{marginTop: "10px"}}>Use: user1@example.com / password1</p>
+          <button onClick={function(){props.onSuccess({ id: 1, email: "user1@example.com", credits: 50 });}} style={{marginTop:"20px", padding:"10px 20px", background:"#60a5fa", color:"white", borderRadius:"5px", border:"none", cursor:"pointer"}}>Simulate Login/Register</button>
+          <button onClick={props.onClose} style={{marginTop:"10px", marginLeft:"10px", padding:"10px 20px", background:"#ef4444", color:"white", borderRadius:"5px", border:"none", cursor:"pointer"}}>Close</button>
+        </div>
+      </div>
+    );
+  }
+
+  function Dashboard(props) {
+    return (
+      <div style={{ padding: "20px", textAlign: "center" }}>
+        <h1 style={{ fontSize: "2.5rem", color: "#67e8f9" }}>Dashboard</h1>
+        <p style={{ marginTop: "10px", color: "#a0aec0" }}>Welcome, {props.user ? props.user.email : "Guest"}!</p>
+        <p style={{ marginTop: "5px", color: "#a0aec0" }}>Credits: {props.user ? props.user.credits : 0}</p>
+        <button
+          onClick={props.onLogout}
+          style={{ marginTop: "20px", padding: "10px 20px", background: "#ef4444", color: "white", borderRadius: "5px", border: "none", cursor: "pointer" }}
+        >
+          Logout
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div style={{minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:"20px"}}>
-      <h1 style={{fontSize:"3rem", fontWeight:"900", color:"#22d3ee"}}>LR AI</h1>
-      <p style={{color:"#94a3b8"}}>Video Generation Platform</p>
-      <button
-        onClick={function(){ setPage("dashboard"); }}
-        style={{padding:"12px 32px", background:"linear-gradient(135deg,#06b6d4,#a855f7)", border:"none", borderRadius:"12px", color:"white", fontWeight:"700", cursor:"pointer", fontSize:"1rem"}}
-      >
-        Enter Dashboard
-      </button>
-      {page === "dashboard" && (
-        <div style={{marginTop:"20px", padding:"20px", border:"1px solid rgba(34,211,238,0.3)", borderRadius:"16px"}}>
-          <p style={{color:"#22d3ee", fontWeight:"700"}}>Dashboard Loaded Successfully!</p>
-          <button onClick={function(){ setPage("landing"); }} style={{marginTop:"10px", padding:"8px 20px", background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:"8px", color:"white", cursor:"pointer"}}>Back</button>
+    <div>
+      {page === "landing" && (
+        <LandingPage
+          onLogin={function() { setAuthMode("login"); setPage("auth"); }}
+          onRegister={function() { setAuthMode("register"); setPage("auth"); }}
+        />
+      )}
+
+      {page === "auth" && (
+        <div>
+          <LandingPage
+            onLogin={function() { setAuthMode("login"); }}
+            onRegister={function() { setAuthMode("register"); }}
+          />
+          <AuthModal
+            mode={authMode}
+            onClose={function() { setPage("landing"); }}
+            onSuccess={function(user) {
+              setCurrentUser(user);
+              setPage("dashboard");
+            }}
+            users={users}
+            setUsers={setUsers}
+          />
         </div>
+      )}
+
+      {page === "dashboard" && currentUser && (
+        <Dashboard
+          user={currentUser}
+          setUser={setCurrentUser}
+          onLogout={function() {
+            setCurrentUser(null);
+            setPage("landing");
+          }}
+          users={users}
+          setUsers={setUsers}
+        />
       )}
     </div>
   );
