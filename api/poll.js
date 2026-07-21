@@ -54,10 +54,12 @@ export default async function handler(req, res) {
       const resultData = await resultRes.json();
       console.log("Poll result response:", JSON.stringify(resultData));
 
+      // Correct extraction for Fal AI Kling v1.6 response structure
       const videoUrl =
-        resultData?.output?.video?.url ||
         resultData?.video?.url ||
-        resultData?.videoUrl ||
+        resultData?.outputs?.[0]?.url ||
+        resultData?.output?.video?.url ||
+        resultData?.payload?.video?.url ||
         null;
 
       if (!videoUrl) {
